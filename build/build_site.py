@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import multiprocessing as mp
 import os
 import re
@@ -116,6 +117,62 @@ def load_master_catalog(cfg):
 # ----------------------------------------------------------------------------
 # per-galaxy processing
 # ----------------------------------------------------------------------------
+
+def agn_flags(lines):
+    """Narrow-line AGN diagnostics from observed line fluxes.
+
+    Criteria: classical BPT (Kewley+01), R3S2/VO87 (Kewley+01),
+    R3O1 (Mazzolari+25 eq. 3), the three [O III]4363 diagnostics of
+    Mazzolari+24 (O3Hg vs O32 / Ne3O2 / O33), and [Ne IV]2424 detection
+    (Mazzolari+25). Lines must be detected at S/N >= 3 (>= 5 for NeIV).
+    Being above a demarcation is sufficient, not necessary, for AGN.
+    """
+    L = {l["name"]: l for l in lines}
+
+    def f(name, snmin=3.0):
+        l = L.get(name)
+        if l and l.get("obs") and l.get("err") and l["obs"] > 0 \
+           and l["err"] > 0 and l["obs"] >= snmin * l["err"]:
+            return l["obs"]
+        return None
+
+    def lg(a, b):
+        return math.log10(a / b) if a and b else None
+
+    ha, hb, hg = f("Ba-alpha 6563"), f("Ba-beta 4861"), f("Ba-gamma 4341")
+    o3, o3a = f("[O III] 5007"), f("[O III] 4363")
+    n2f, o1f = f("[N II] 6584"), f("[O I] 6300")
+    s2f = (f("[S II] 6716") or 0) + (f("[S II] 6731") or 0) or None
+    o2f, ne3 = f("[O II] 3726"), f("[Ne III] 3869")  # [O II] = blended doublet
+    tags = []
+    R3 = lg(o3, hb)
+    N2, S2, O1 = lg(n2f, ha), lg(s2f, ha), lg(o1f, ha)
+    if R3 is not None and N2 is not None and (
+            N2 >= 0.47 or R3 > 0.61 / (N2 - 0.47) + 1.19):
+        tags.append("BPT (Kewley+01)")
+    if R3 is not None and S2 is not None and (
+            S2 >= 0.32 or R3 > 0.72 / (S2 - 0.32) + 1.30):
+        tags.append("R3S2/VO87 (Kewley+01)")
+    if R3 is not None and O1 is not None and (
+            O1 >= 0.15 or R3 > 2.5 + 2.65 / (O1 - 0.15)):
+        tags.append("R3O1 (Mazzolari+25)")
+    Y = lg(o3a, hg)
+    if Y is not None:
+        X = lg(o3, o2f)
+        if X is not None and Y > (0.55 * X - 0.95 if X > 0.84
+                                  else 0.1 * X - 0.57):
+            tags.append("O3Hg-O32 (Mazzolari+24)")
+        X = lg(ne3, o2f)
+        if X is not None and Y > (0.48 * X - 0.42 if X > -0.07
+                                  else 0.2 * X - 0.44):
+            tags.append("O3Hg-Ne3O2 (Mazzolari+24)")
+        X = lg(o3, o3a)
+        if X is not None and Y > -1.1 * X + 1.47:
+            tags.append("O3Hg-O33 (Mazzolari+24)")
+    if f("Blnd 2424", snmin=5.0):
+        tags.append("[Ne IV]2424 detected (Mazzolari+25)")
+    return tags
+
 
 def process_galaxy(task):
     """Worker: build figures + detail JSON for one galaxy. Returns catalog row."""
@@ -269,6 +326,7 @@ def process_galaxy(task):
         "zred": {"q16": zred[0], "q50": zred[1], "q84": zred[2]},
         "catalog": cat_row or {},
         "fitsmap_url": fitsmap_url,
+        "agn": agn_flags(lines),
         "params": params, "derived": derived,
         "photometry": photometry, "lines": lines,
         "gof": gof, "summary": summary_quants,
@@ -307,6 +365,7 @@ def process_galaxy(task):
            "tier": (cat_row or {}).get("TIER"),
            "z_spec": (cat_row or {}).get("z_Spec"),
            "z_flag": (cat_row or {}).get("z_Spec_flag"),
+           "agn": agn_flags(lines),
            "logZ_evidence": gof.get("logZ")}
     # key emission lines for the catalogue-wide predicted-vs-observed figures
     _LINEKEYS = {"[O III] 5007": "oiii", "Ba-alpha 6563": "ha", "Ba-beta 4861": "hb"}

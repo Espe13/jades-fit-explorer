@@ -148,6 +148,9 @@ td.warn { color: var(--bad); font-weight: 600; }
 details { margin-bottom: 10px; }
 details summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; color: var(--ink); }
 .msg { color: var(--ink-2); padding: 30px 0; text-align: center; }
+.agnchip { display: inline-block; font-size: 10.5px; font-weight: 700;
+  color: #fff; background: var(--bad); border-radius: 4px; padding: 0.5px 5px;
+  vertical-align: 1px; letter-spacing: 0.4px; cursor: help; }
 .runbadges { display: flex; gap: 6px; flex-wrap: wrap; }
 .runbadge { font-size: 12.5px; padding: 3px 10px; border-radius: 999px;
   border: 1px solid var(--line); color: var(--ink-2); }
@@ -363,7 +366,8 @@ function drawTable(run) {
   }));
 
   $("#tbody").innerHTML = rows.map(r => "<tr data-id='" + r.id + "'>" + cols.map(c => {
-    if (c.id) return `<td class="id">${r.id}</td>`;
+    if (c.id) return `<td class="id">${r.id}${(r.agn || []).length
+      ? ` <span class="agnchip" title="${esc(r.agn.join(", "))}">AGN</span>` : ""}</td>`;
     const v = r[c.key];
     if (c.err && typeof v === "number")
       return `<td title="16–84%: ${fmt(r[c.key+"_lo"],4)} … ${fmt(r[c.key+"_hi"],4)}">${fmt(v, c.d ?? 3)}</td>`;
@@ -434,7 +438,9 @@ async function viewGalaxy(run, id) {
     <div class="crumb"><a href="#/run/${run}">← back to ${esc(meta.label || run)}</a></div>
     <div class="card">
       <div class="gal-head">
-        <h2>JADES ${g.id}</h2>
+        <h2>JADES ${g.id}${(g.agn || []).length
+          ? ` <span class="agnchip" style="font-size:13px;vertical-align:4px"
+              title="${esc(g.agn.join("; "))}">AGN</span>` : ""}</h2>
         <span class="coords mono">${ra != null ? `${fmt(ra,7)}°, ${fmt(dec,7)}°` : ""}
           ${ra != null ? " · " + sexagesimal(ra, dec) : ""}</span>
         <span class="small">${esc(cat.TIER ?? "")}</span>
@@ -443,6 +449,10 @@ async function viewGalaxy(run, id) {
           `<a class="runbadge ${r === run ? "active" : ""}" href="#/galaxy/${r}/${id}">${esc(r)}</a>`).join("")}
         </span>
       </div>
+      ${(g.agn || []).length ? `<div class="small" style="color:var(--bad)">
+        AGN by: ${esc(g.agn.join("; "))} — narrow-line diagnostics of
+        Mazzolari et al. (2024, 2025) and Kewley et al. (2001); sufficient,
+        not necessary, conditions</div>` : ""}
       <div class="small">model: <code>${esc(g.model ?? "?")}</code> ·
         engine: <code>${esc(g.engine ?? "?")}</code> ·
         ${g.n_samples} posterior samples ·
@@ -541,7 +551,7 @@ async function viewGalaxy(run, id) {
 }
 /* -------------------------------------------------- catalogue-wide figures */
 const FSTATE = { flags: { A: true, B: true, C: true, "–": true },
-                 chi2max: null, zmin: null, zmax: null };
+                 chi2max: null, zmin: null, zmax: null, agn: "all" };
 let MZR = undefined;  // lazy-loaded overlay
 
 // viridis colormap (8 anchor stops, linear interpolation)
@@ -810,6 +820,9 @@ function distFig(cats, valsPerCat, opts) {
 function passesFilters(r) {
   const flag = r.z_flag || "–";
   if (!FSTATE.flags[flag]) return false;
+  const isAgn = (r.agn || []).length > 0;
+  if (FSTATE.agn === "agn" && !isAgn) return false;
+  if (FSTATE.agn === "sf" && isAgn) return false;
   if (FSTATE.chi2max !== null && r.chi2_nu !== null && r.chi2_nu !== undefined
       && r.chi2_nu > FSTATE.chi2max) return false;
   const z = r.zred;
@@ -840,6 +853,12 @@ async function viewFigures(run) {
         <label style="margin-left:14px">z<sub>fit</sub>
           <input type="number" id="fzmin" step="0.1" placeholder="min" value="${FSTATE.zmin ?? ""}"> –
           <input type="number" id="fzmax" step="0.1" placeholder="max" value="${FSTATE.zmax ?? ""}"></label>
+        <label style="margin-left:14px">AGN:
+          <select id="fagn">
+            <option value="all" ${FSTATE.agn === "all" ? "selected" : ""}>all galaxies</option>
+            <option value="agn" ${FSTATE.agn === "agn" ? "selected" : ""}>AGN only</option>
+            <option value="sf" ${FSTATE.agn === "sf" ? "selected" : ""}>exclude AGN</option>
+          </select></label>
         <span class="spacer"></span>
         <span class="small" id="fcount"></span>
       </div>
@@ -856,6 +875,7 @@ async function viewFigures(run) {
   $("#fchi2").addEventListener("input", e => { FSTATE.chi2max = e.target.value === "" ? null : +e.target.value; drawFigs(run); });
   $("#fzmin").addEventListener("input", e => { FSTATE.zmin = e.target.value === "" ? null : +e.target.value; drawFigs(run); });
   $("#fzmax").addEventListener("input", e => { FSTATE.zmax = e.target.value === "" ? null : +e.target.value; drawFigs(run); });
+  $("#fagn").addEventListener("change", e => { FSTATE.agn = e.target.value; drawFigs(run); });
   drawFigs(run);
 }
 
