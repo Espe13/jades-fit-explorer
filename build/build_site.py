@@ -330,8 +330,12 @@ def process_galaxy(task):
         "params": params, "derived": derived,
         "photometry": photometry, "lines": lines,
         "gof": gof, "summary": summary_quants,
+        # only link figures whose file actually exists, so a --no-figures
+        # build of new galaxies never publishes dead image links
         "figures": {**{k: f"{asset_url}/{gid}_{k}" for k in FIG_KINDS
-                       if k != "lines" or have_lines},
+                       if (k != "lines" or have_lines) and
+                       (fig_paths[k].exists() or
+                        fig_paths[k].with_suffix(".png").exists())},
                     **({"cutout": cutout_url} if cutout_url else {}),
                     **({"fitsmap": snap_url} if snap_url else {})},
         "npz_file": os.path.basename(npz_path),

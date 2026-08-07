@@ -472,9 +472,9 @@ async function viewGalaxy(run, id) {
             "RGB cutout with Kron aperture (green) and MSA shutters (yellow)") : ""}
         ${g.figures.fitsmap ? figTag(g.figures.fitsmap,
             "fitsmap view with NIRCam DR5 photometry and NIRSpec slit overlays") : ""}
-        ${figTag(g.figures.sed, "SED: observed vs posterior-predicted photometry")}
+        ${g.figures.sed ? figTag(g.figures.sed, "SED: observed vs posterior-predicted photometry") : ""}
         ${g.figures.lines ? figTag(g.figures.lines, "Emission lines: predicted / observed flux") : ""}
-        ${figTag(g.figures.kl, "Information gain per parameter, KL(posterior ‖ prior)")}
+        ${g.figures.kl ? figTag(g.figures.kl, "Information gain per parameter, KL(posterior ‖ prior)") : ""}
         ${g.fitsmap_url ? `
           <figure class="fig"><div style="padding:8px">
             <p class="small" style="margin:4px 0 10px">Interactive imaging at this position:</p>
@@ -484,7 +484,12 @@ async function viewGalaxy(run, id) {
             <p class="small" style="margin:12px 0 4px">
               <button class="btn" onclick="embedMap(this, '${g.fitsmap_url}')">embed map here</button></p>
           </div><figcaption>RGB imaging (fitsmap)</figcaption></figure>` : ""}
-        ${figTag(g.figures.corner, "Posterior corner plot", "full")}
+        ${g.figures.corner ? figTag(g.figures.corner, "Posterior corner plot", "full") : ""}
+        ${!g.figures.corner || !g.figures.sed ? `
+          <figure class="fig"><div style="padding:14px" class="small">
+            Diagnostic figures for this galaxy have not been generated yet —
+            the catalogue data on this page are complete; figures appear with
+            the next full site build.</div></figure>` : ""}
       </div>
     </div>
 
