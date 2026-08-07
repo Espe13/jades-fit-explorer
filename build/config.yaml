@@ -104,27 +104,63 @@ cutouts:
 # range (marked with lighter bars in the KL figure).
 # EDIT these to match the priors of your Prospector model.
 # ---------------------------------------------------------------------------
+# As-run priors, taken verbatim from jades_full/tursa/common/config.py
+# (PRIOR_SPECS) and tursa/fits/run_jades.py (decide_zred_treatment).
 priors:
-  # logmass:            {dist: uniform, lo: 6.0, hi: 12.0}
-  # Z:                  {dist: uniform, lo: -4.0, hi: 0.19}
-  # gas_logz:           {dist: uniform, lo: -4.0, hi: 0.5}
-  # gas_logu:           {dist: uniform, lo: -4.0, hi: -1.0}
-  # tau_bc_fraction:    {dist: uniform, lo: 0.0, hi: 2.0}
-  # diffuse_tau_kc:     {dist: uniform, lo: 0.0, hi: 4.0}
-  # diffuse_dust_index: {dist: uniform, lo: -1.0, hi: 0.4}
-  # frac_obrun:         {dist: uniform, lo: 0.0, hi: 1.0}
-  # eline_scaling:      {dist: normal, mean: 1.0, sigma: 0.2}
+  logmass:            {dist: uniform, lo: 6.0, hi: 12.5}
+  # Z is log10(absolute metal mass fraction), bounded by the BPASS-2.2
+  # 12-point runtime grid.
+  Z:                  {dist: uniform, lo: -4.0, hi: -1.398}
+  tau_bc_fraction:    {dist: normal, mean: 1.0, sigma: 0.3, lo: 0.0, hi: 2.0}
+  diffuse_tau_kc:     {dist: normal, mean: 0.3, sigma: 1.0, lo: 0.0, hi: 4.0}
+  diffuse_dust_index: {dist: uniform, lo: -1.0, hi: 0.4}
+  gas_logz:           {dist: uniform, lo: -2.0, hi: 0.5}
+  gas_logu:           {dist: uniform, lo: -4.0, hi: -1.0}
+  frac_obrun:         {dist: uniform, lo: 0.0, hi: 1.0}
+  # per-galaxy: TruncatedNormal(z_spec, sigma*(1+z_spec)) on [lo, hi] with
+  # sigma_ab for flags A/B and sigma_c for flag C; Uniform[lo, hi] otherwise.
+  zred:               {dist: zspec_gauss, sigma_ab: 0.01, sigma_c: 0.02,
+                       lo: 0.0, hi: 20.0}
 
 # ---------------------------------------------------------------------------
 # Fit runs. `pattern` must contain a named group (?P<id>...) capturing the
 # galaxy id. `summary_csv` is optional - when present, chi^2, fesc, MUV, etc.
 # are taken from it; otherwise everything is computed from the npz alone.
 # ---------------------------------------------------------------------------
+# Shared prior rows for the "Model & priors" panel shown on each run page.
+_priors_table_common: &priors_common
+  - ["logsfr_ratios[0..6]", "Student-t(df = 2, loc = 0, scale = 0.5) per ratio — bursty continuity SFH"]
+  - ["log M*/M_sun", "Uniform(6.0, 12.5)"]
+  - ["Z = log10(Z_abs)", "Uniform(-4.0, -1.398) — BPASS 2.2 runtime grid range"]
+  - ["tau_BC / tau_diffuse", "Normal(1.0, 0.3) truncated to [0, 2]"]
+  - ["tau_diffuse (KC13)", "Normal(0.3, 1.0) truncated to [0, 4]"]
+  - ["diffuse dust index", "Uniform(-1.0, 0.4) — offset from Calzetti in Kriek & Conroy (2013)"]
+  - ["log Z_gas/Z_sun", "Uniform(-2.0, 0.5)"]
+  - ["log U", "Uniform(-4.0, -1.0)"]
+  - ["z_red", "flags A/B: TruncNormal(z_spec, 0.01(1+z_spec)); flag C: sigma = 0.02(1+z_spec); both on [0, 20]; no secure z_spec: Uniform(0, 20)"]
+  - ["fixed", "emission-line aperture scaling = 1; birth-cloud slope alpha = -1.3 (da Cunha+ 2008); Madau (1995) IGM"]
+
 runs:
   - name: fesc_ns
     label: "fesc model"
     description: >
       Nested-sampling fits with the fesc (escape-fraction) model.
+    model_description: >
+      Prospector-style "fesc" model fitted with CERIDWEN (JAX) and adaptive
+      nested sampling (blackjax-ns), yielding the full posterior and the
+      Bayesian evidence ln Z for per-galaxy model comparison against the
+      extra-young variant. Physics: 8-bin continuity SFH on the extra-young
+      age grid (bin edges 0, 3, 5, 10 Myr, then log-spaced to the age of the
+      Universe at z = 20), BPASS 2.2 stellar populations with CLOUDY nebular
+      emission, two-component Charlot & Fall (2000) dust with the Kriek &
+      Conroy (2013) attenuation curve, Madau (1995) IGM absorption, and
+      redshift sampled with a per-galaxy prior tied to the catalogue z_spec.
+      The additional free parameter frac_obrun lets a fraction of the O/B
+      stars run away from their birth clouds / escape, reducing the nebular
+      line and continuum emission relative to the ionizing output.
+    priors_table:
+      - ["frac_obrun", "Uniform(0, 1)"]
+      - *priors_common
     results_dir: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc
     pattern: 'posterior_jades_(?P<id>\d+)_fesc_ns\.npz$'
     summary_csv: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc/summary/summary_results_fesc_fesc_ns.csv
@@ -133,5 +169,16 @@ runs:
     label: "extra-young model"
     description: >
       Nested-sampling fits with the extra-young SFH model.
+    model_description: >
+      Baseline variant of the same physical model, fitted identically with
+      CERIDWEN (JAX) and adaptive nested sampling: 8-bin continuity SFH on
+      the extra-young age grid (0, 3, 5, 10 Myr edges, then log-spaced to
+      the age of the Universe at z = 20), BPASS 2.2 stellar populations with
+      CLOUDY nebular emission, Charlot & Fall (2000) + Kriek & Conroy (2013)
+      dust, Madau (1995) IGM, and the same per-galaxy redshift prior. It has
+      no frac_obrun parameter (all ionizing photons are processed by the
+      birth clouds), so the evidence difference ln Z(fesc) - ln Z(extra-young)
+      quantifies the support for the escape/runaway channel in each galaxy.
+    priors_table: *priors_common
     results_dir: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_extra_young
     pattern: 'posterior_jades_(?P<id>\d+)_extra_young_ns\.npz$'

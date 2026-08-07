@@ -121,12 +121,33 @@ def process_galaxy(task):
     """Worker: build figures + detail JSON for one galaxy. Returns catalog row."""
     (npz_path, gid, run, out_data, out_assets, asset_url, cutout_url, snap_url,
      cat_row, sum_row, prior_spec, fitsmap_tpl, corner_dpi, force,
-     no_figures) = task
+     no_figures, refigure) = task
     t0 = time.time()
     post = figures.load_posterior(npz_path)
     ex = post["extra"]
     names = post["param_names"]
     theta = post["theta"]
+    # per-galaxy redshift prior: dist 'zspec_gauss' resolves from the
+    # catalogue z_Spec / z_Spec_flag (A/B: sigma_ab*(1+z); C: sigma_c*(1+z);
+    # otherwise uniform over [lo, hi]) - mirrors run_jades.decide_zred_treatment
+    zspec_spec = (prior_spec or {}).get("zred")
+    if zspec_spec and zspec_spec.get("dist") == "zspec_gauss":
+        prior_spec = dict(prior_spec)
+        lo = float(zspec_spec.get("lo", 0.0))
+        hi = float(zspec_spec.get("hi", 20.0))
+        zs = (cat_row or {}).get("z_Spec")
+        fl = str((cat_row or {}).get("z_Spec_flag") or "").strip().upper()
+        try:
+            zs = float(zs)
+        except (TypeError, ValueError):
+            zs = float("nan")
+        if fl in ("A", "B", "C") and np.isfinite(zs) and zs > 0:
+            sig = float(zspec_spec.get("sigma_ab", 0.01) if fl in ("A", "B")
+                        else zspec_spec.get("sigma_c", 0.02)) * (1.0 + zs)
+            prior_spec["zred"] = {"dist": "normal", "mean": zs, "sigma": sig,
+                                  "lo": lo, "hi": hi}
+        else:
+            prior_spec["zred"] = {"dist": "uniform", "lo": lo, "hi": hi}
     priors = priors_from_config(prior_spec)
 
     fig_dir = Path(out_assets)
@@ -135,20 +156,22 @@ def process_galaxy(task):
 
     src_mtime = os.path.getmtime(npz_path)
 
-    def stale(p):
+    def stale(p, kind=None):
+        if kind is not None and kind in refigure:
+            return True
         png = Path(str(p).replace(".webp", ".png"))
         tgt = p if p.exists() else (png if png.exists() else None)
         return force or tgt is None or os.path.getmtime(tgt) < src_mtime
 
     have_lines = figures.has_lines(post)
     if not no_figures:
-        if stale(fig_paths["corner"]):
+        if stale(fig_paths["corner"], "corner"):
             figures.fig_corner(post, fig_paths["corner"], dpi=corner_dpi)
-        if stale(fig_paths["sed"]):
+        if stale(fig_paths["sed"], "sed"):
             figures.fig_sed(post, fig_paths["sed"])
-        if have_lines and stale(fig_paths["lines"]):
+        if have_lines and stale(fig_paths["lines"], "lines"):
             figures.fig_lines(post, fig_paths["lines"])
-        if stale(fig_paths["kl"]):
+        if stale(fig_paths["kl"], "kl"):
             figures.fig_kl(post, fig_paths["kl"], priors=priors)
 
     # ---- parameter table (sampled params + derived samples) ----------------
@@ -349,7 +372,8 @@ def load_te_metallicity_map(cfg):
     return out
 
 
-def build_run(run_cfg, cfg, master, te_map, out_root, jobs, force, no_figures):
+def build_run(run_cfg, cfg, master, te_map, out_root, jobs, force, no_figures,
+              refigure=frozenset()):
     name = run_cfg["name"]
     results_dir = Path(os.path.expanduser(run_cfg["results_dir"]))
     pattern = run_cfg.get("pattern", r"posterior_jades_(?P<id>\d+)_.*\.npz$")
@@ -399,7 +423,7 @@ def build_run(run_cfg, cfg, master, te_map, out_root, jobs, force, no_figures):
         tasks.append((str(p), gid, name, str(out_data), str(out_assets),
                       asset_url, cutout_url, snap_url, master.get(gid),
                       sum_rows.get(gid), prior_spec, fitsmap_tpl,
-                      corner_dpi, force, no_figures))
+                      corner_dpi, force, no_figures, refigure))
 
     if jobs > 1:
         with mp.Pool(jobs) as pool:
@@ -428,6 +452,12 @@ def build_run(run_cfg, cfg, master, te_map, out_root, jobs, force, no_figures):
         "name": name,
         "label": run_cfg.get("label", name),
         "description": run_cfg.get("description", ""),
+        "model_description": run_cfg.get("model_description", ""),
+        # flatten one level so a shared YAML anchor list can be mixed with
+        # run-specific rows
+        "priors_table": [e for entry in run_cfg.get("priors_table", [])
+                         for e in (entry if entry and isinstance(entry[0], list)
+                                   else [entry])],
         "n_galaxies": len(rows),
         "ids": [r["id"] for r in rows],
     }
@@ -439,6 +469,10 @@ def main():
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--force", action="store_true",
                     help="regenerate figures even if up to date")
+    ap.add_argument("--refigure", default="",
+                    help="comma list of figure kinds to force-regenerate even "
+                         "when up to date (corner,sed,lines,kl) - e.g. "
+                         "--refigure kl after changing the priors config")
     ap.add_argument("--no-figures", action="store_true",
                     help="only rebuild JSON data, skip figure generation")
     ap.add_argument("--runs", nargs="*", default=None,
@@ -467,7 +501,9 @@ def main():
         if args.runs and run_cfg["name"] not in args.runs:
             continue
         meta = build_run(run_cfg, cfg, master, te_map, out_root, args.jobs,
-                         args.force, args.no_figures)
+                         args.force, args.no_figures,
+                         frozenset(k.strip() for k in
+                                   (args.refigure or "").split(",") if k.strip()))
         if meta:
             run_metas.append(meta)
 

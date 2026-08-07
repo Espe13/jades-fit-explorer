@@ -301,6 +301,20 @@ async function viewTable(run) {
       <h2>${esc(meta.label || run)} <span class="n">— ${rows.length} galaxies</span>
         <a href="#/figures/${run}" style="float:right;font-size:13.5px;font-weight:500">Catalogue figures →</a></h2>
       ${meta.description ? `<p class="small" style="margin:0 0 10px">${esc(meta.description)}</p>` : ""}
+      ${meta.model_description || (meta.priors_table || []).length ? `
+      <details style="margin:0 0 12px">
+        <summary style="cursor:pointer;font-weight:600;font-size:13.5px">Model &amp; priors</summary>
+        ${meta.model_description ? `<p class="small" style="margin:8px 0">${esc(meta.model_description)}</p>` : ""}
+        ${(meta.priors_table || []).length ? `
+        <table class="ptable" style="font-size:12.5px;margin:4px 0 2px">
+          <thead><tr><th style="text-align:left;padding:3px 12px 3px 0">parameter</th>
+                     <th style="text-align:left;padding:3px 0">prior</th></tr></thead>
+          <tbody>${meta.priors_table.map(([p, d]) => `
+            <tr><td style="padding:2.5px 12px 2.5px 0;white-space:nowrap;color:var(--ink)">${esc(p)}</td>
+                <td style="padding:2.5px 0;color:var(--ink-2)">${esc(d)}</td></tr>`).join("")}
+          </tbody>
+        </table>` : ""}
+      </details>` : ""}
       <div class="toolbar">
         <input type="text" id="q" placeholder="filter by ID…" value="${esc(S.query)}">
         <label>z<sub>fit</sub> <input type="number" id="zmin" step="0.1" placeholder="min"
@@ -663,11 +677,21 @@ function scatterFig(opts) {
       s += `<rect x="${cbx}" y="${yy}" width="${cbw}" height="${ph/n+0.5}"
            fill="${viridis(i/(n-1))}"/>`;
     }
-    const { min, max, label } = opts.colorbar;
+    const { min, max, label, log1p } = opts.colorbar;
+    const frac = v => log1p
+      ? (Math.log10(1 + Math.max(v, 0)) - Math.log10(1 + Math.max(min, 0))) /
+        Math.max(1e-12, Math.log10(1 + Math.max(max, 0)) - Math.log10(1 + Math.max(min, 0)))
+      : (v - min) / Math.max(1e-12, max - min);
     s += `<text x="${cbx+cbw+4}" y="${mt+ph}" fill="var(--ink-2)">${fmtTick(min)}</text>`;
     s += `<text x="${cbx+cbw+4}" y="${mt+10}" fill="var(--ink-2)">${fmtTick(max)}</text>`;
-    s += `<text transform="rotate(-90 ${cbx+cbw+30} ${mt+ph/2})" x="${cbx+cbw+30}" y="${mt+ph/2}"
-         text-anchor="middle" fill="var(--ink)">${label}</text>`;
+    // intermediate ticks at integer values, spaced by the colour mapping
+    for (let v = Math.ceil(min + 0.5); v <= Math.floor(max - 0.5); v++) {
+      const yy = mt + ph - frac(v) * ph;
+      s += `<line x1="${cbx+cbw}" y1="${yy}" x2="${cbx+cbw+3}" y2="${yy}" stroke="var(--ink-2)"/>`;
+      s += `<text x="${cbx+cbw+5}" y="${yy+3.5}" fill="var(--ink-2)" font-size="10">${v}</text>`;
+    }
+    s += `<text transform="rotate(-90 ${cbx+cbw+34} ${mt+ph/2})" x="${cbx+cbw+34}" y="${mt+ph/2}"
+         text-anchor="middle" fill="var(--ink)">${label}${log1p ? " (log(1+z) scale)" : ""}</text>`;
   }
   s += `</svg>`;
   return s;
@@ -840,8 +864,11 @@ function drawFigs(run) {
   $("#fcount").textContent = `${rows.length} / ${S.catalogs[run].length} galaxies pass`;
   const zs = rows.map(r => r.zred).filter(Number.isFinite);
   const zlo = Math.min(...(zs.length ? zs : [0])), zhi = Math.max(...(zs.length ? zs : [1]));
-  const zc = z => viridis(zhi > zlo ? (z - zlo) / (zhi - zlo) : 0.5);
-  const cb = { min: zlo, max: zhi, label: "z (fit)" };
+  // colour by log(1+z): equal colour steps correspond to equal fractional
+  // changes in 1+z, so Dz at low z spans more of the scale than at high z
+  const L1 = z => Math.log10(1 + Math.max(z, 0));
+  const zc = z => viridis(zhi > zlo ? (L1(z) - L1(zlo)) / (L1(zhi) - L1(zlo)) : 0.5);
+  const cb = { min: zlo, max: zhi, label: "z (fit)", log1p: true };
   const L10 = Math.log10;
 
   const linePanel = (key, label) => {
@@ -990,8 +1017,24 @@ function drawFigs(run) {
     const catsSet = new Map();  // preserve first-seen order
     rows.forEach(r => Object.keys(r[field] || {}).forEach(k => catsSet.set(k, true)));
     let cats = [...catsSet.keys()];
-    if (field === "phot_chi")  // sort filters by wavelength encoded in the name
-      cats = cats.sort((a, b) => parseInt(a.replace(/\D/g, "")) - parseInt(b.replace(/\D/g, "")));
+    // order categories by wavelength
+    const lineWl = name => {           // Angstrom from the line label
+      const um = name.match(/(\d+(?:\.\d+)?)\s*um\b/i);
+      if (um) return parseFloat(um[1]) * 1e4;
+      const m = name.match(/(\d{3,6})(?!.*\d)/);
+      return m ? parseFloat(m[1]) : Infinity;
+    };
+    const filtWl = name => {           // Angstrom from the filter code
+      const m = name.match(/(\d+)/);
+      if (!m) return Infinity;
+      const n = parseInt(m[1], 10);
+      // NIRCam / WFC3-IR codes are 100 x microns (F090W, F125W, F444W...);
+      // only the HST ACS optical bands encode ~nm.
+      const ACS = new Set([435, 606, 775, 814, 850]);
+      return ACS.has(n) ? n * 10 : n * 100;
+    };
+    const wlOf = field === "phot_chi" ? filtWl : lineWl;
+    cats = cats.sort((a, b) => wlOf(a) - wlOf(b));
     const vals = cats.map(cat => rows
       .filter(r => r[field] && Number.isFinite(r[field][cat]))
       .map(r => ({ y: r[field][cat], c: zc(r.zred), id: r.id,
