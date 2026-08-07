@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JADES fit explorer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%233465ad'/%3E%3Ccircle cx='12' cy='13' r='3.5' fill='%23fff'/%3E%3Ccircle cx='21' cy='19' r='2.2' fill='%23fff' opacity='0.8'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --ink: #1c1c1c;
+  --ink-2: #555555;
+  --ink-3: #8a8a8a;
+  --line: #e3e3e0;
+  --accent: #3465ad;
+  --accent-soft: #e7eef8;
+  --bad: #b5442d;
+  --good: #2e7d4f;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --surface: #1f2229;
+    --ink: #e8e8e6;
+    --ink-2: #b0b0ae;
+    --ink-3: #7a7a78;
+    --line: #32353d;
+    --accent: #7ba3d8;
+    --accent-soft: #263247;
+    --shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.92em; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px 60px; }
+
+header.site {
+  padding: 26px 0 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+header.site h1 { margin: 0 0 2px; font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+header.site h1 a { color: var(--ink); }
+header.site .sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
+
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: -1px; }
+.tab {
+  padding: 7px 14px; border: 1px solid var(--line); border-bottom: none;
+  border-radius: 8px 8px 0 0; background: transparent; color: var(--ink-2);
+  cursor: pointer; font-size: 14px;
+}
+.tab:hover { color: var(--ink); background: var(--surface); text-decoration: none; }
+.tab.active { background: var(--surface); color: var(--ink); font-weight: 600;
+  box-shadow: inset 0 2px 0 var(--accent); }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px 18px; margin-bottom: 18px;
+}
+.card h2 { margin: 0 0 10px; font-size: 15px; font-weight: 650; color: var(--ink); }
+.card h2 .n { color: var(--ink-3); font-weight: 400; }
+
+.toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.toolbar input[type=text], .toolbar input[type=number] {
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font-size: 14px; width: 130px;
+}
+.toolbar input[type=text] { width: 190px; }
+.toolbar label { color: var(--ink-2); font-size: 13px; }
+.toolbar .spacer { flex: 1; }
+button.btn {
+  padding: 6px 13px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--surface); color: var(--ink); cursor: pointer; font-size: 13.5px;
+}
+button.btn:hover { border-color: var(--accent); color: var(--accent); }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.btn.primary:hover { filter: brightness(1.08); color: #fff; }
+
+.tablewrap { overflow-x: auto; }
+table.cat { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.cat th, table.cat td { padding: 6px 10px; text-align: right; white-space: nowrap; }
+table.cat th:first-child, table.cat td:first-child { text-align: left; }
+table.cat th {
+  color: var(--ink-2); font-weight: 600; border-bottom: 2px solid var(--line);
+  cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface);
+}
+table.cat th .arr { color: var(--accent); font-size: 11px; }
+table.cat tbody tr { border-bottom: 1px solid var(--line); cursor: pointer; }
+table.cat tbody tr:hover { background: var(--accent-soft); }
+table.cat td.id { color: var(--accent); font-weight: 600; }
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px;
+  color: var(--ink-2); font-size: 13px; }
+
+/* galaxy page */
+.gal-head { display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline; margin-bottom: 4px; }
+.gal-head h2 { margin: 0; font-size: 24px; font-weight: 700; }
+.gal-head .coords { color: var(--ink-2); font-size: 14px; }
+.crumb { font-size: 13.5px; margin: 2px 0 12px; color: var(--ink-3); }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 4px; }
+.chip {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 9px;
+  padding: 8px 14px; min-width: 108px;
+}
+.chip .k { font-size: 11.5px; color: var(--ink-3); letter-spacing: 0.02em; }
+.chip .v { font-size: 16px; font-weight: 650; color: var(--ink); }
+.chip .v small { font-weight: 400; color: var(--ink-2); font-size: 11.5px; }
+
+.figgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.figgrid .full { grid-column: 1 / -1; }
+@media (max-width: 800px) { .figgrid { grid-template-columns: 1fr; } }
+figure.fig {
+  margin: 0; background: #ffffff; border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 10px; text-align: center;
+}
+figure.fig img { max-width: 100%; height: auto; cursor: zoom-in; border-radius: 4px; }
+figure.fig figcaption { font-size: 12.5px; color: var(--ink-2); padding-top: 6px; }
+
+.lightbox {
+  position: fixed; inset: 0; background: rgba(12,14,18,0.92); z-index: 50;
+  display: none; overflow: auto; cursor: zoom-out; text-align: center;
+}
+.lightbox.open { display: block; }
+.lightbox img { margin: 24px auto; max-width: none; width: min(1600px, 96vw); background: #fff;
+  border-radius: 6px; }
+
+table.kv { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+table.kv th, table.kv td { padding: 5px 10px; text-align: right; }
+table.kv th:first-child, table.kv td:first-child { text-align: left; }
+table.kv th { color: var(--ink-2); font-weight: 600; border-bottom: 2px solid var(--line); }
+table.kv tbody tr { border-bottom: 1px solid var(--line); }
+td.warn { color: var(--bad); font-weight: 600; }
+.small { font-size: 12.5px; color: var(--ink-3); }
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .cols2 { grid-template-columns: 1fr; } }
+
+details { margin-bottom: 10px; }
+details summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; color: var(--ink); }
+.msg { color: var(--ink-2); padding: 30px 0; text-align: center; }
+.runbadges { display: flex; gap: 6px; flex-wrap: wrap; }
+.runbadge { font-size: 12.5px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--ink-2); }
+.runbadge.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.runbadge:hover { text-decoration: none; border-color: var(--accent); }
+iframe.map { width: 100%; height: 480px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: #0b0d12; }
+sub.eb, sup.eb { font-size: 9.5px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <h1><a href="#/" id="siteTitle">JADES fit explorer</a></h1>
+    <p class="sub" id="siteSub"></p>
+    <nav class="tabs" id="runTabs"></nav>
+  </header>
+  <main id="app"><div class="msg">Loading…</div></main>
+  <footer class="small" style="margin-top:30px">
+    Built with <a href="https://github.com/">jades-fit-explorer</a> ·
+    catalogue and figures are static files – see the repository README for how to add new fits.
+  </footer>
+</div>
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightboxImg" alt=""></div>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ state */
+const S = {
+  runs: null,             // runs.json content
+  galaxyIndex: null,      // id -> [run names]
+  catalogs: {},           // run -> catalog.json rows
+  sort: { key: "id", dir: 1 },
+  page: 0,
+  perPage: 100,
+  query: "",
+  zmin: null, zmax: null,
+};
+const $ = (sel, el=document) => el.querySelector(sel);
+const app = $("#app");
+
+/* ------------------------------------------------------------- formatting */
+function fmt(v, d=3) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "–";
+  if (typeof v !== "number") return String(v);
+  if (v === 0) return "0";
+  const a = Math.abs(v);
+  if (a >= 1e5 || a < 1e-3) return v.toExponential(d - 1);
+  const dec = Math.max(0, d - 1 - Math.floor(Math.log10(a)));
+  return v.toFixed(Math.min(dec, 6));
+}
+function fmtErr(v, lo, hi, d=3) {
+  if (v === null || v === undefined) return "–";
+  let s = fmt(v, d);
+  if (lo !== null && lo !== undefined && hi !== null && hi !== undefined)
+    s += ` <sup class="eb">+${fmt(hi - v, 2)}</sup><sub class="eb">−${fmt(v - lo, 2)}</sub>`;
+  return s;
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function sexagesimal(ra, dec) {
+  if (ra == null || dec == null) return "";
+  const h = ra / 15, hh = Math.floor(h), mm = Math.floor((h - hh) * 60),
+        ss = ((h - hh) * 60 - mm) * 60;
+  const sgn = dec < 0 ? "−" : "+", ad = Math.abs(dec), dd = Math.floor(ad),
+        dm = Math.floor((ad - dd) * 60), ds = ((ad - dd) * 60 - dm) * 60;
+  const p = (x, n) => String(x).padStart(n, "0");
+  return `${p(hh,2)}:${p(mm,2)}:${ss.toFixed(2).padStart(5,"0")} ` +
+         `${sgn}${p(dd,2)}:${p(dm,2)}:${ds.toFixed(1).padStart(4,"0")}`;
+}
+
+/* --------------------------------------------------------------- data I/O */
+async function getJSON(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return r.json();
+}
+async function loadRuns() {
+  if (S.runs) return S.runs;
+  S.runs = await getJSON("data/runs.json");
+  try { S.galaxyIndex = await getJSON("data/galaxy_index.json"); }
+  catch (e) { S.galaxyIndex = {}; }
+  $("#siteTitle").textContent = S.runs.site_title || "JADES fit explorer";
+  $("#siteSub").textContent = S.runs.site_subtitle || "";
+  document.title = S.runs.site_title || "JADES fit explorer";
+  return S.runs;
+}
+async function loadCatalog(run) {
+  if (!S.catalogs[run])
+    S.catalogs[run] = (await getJSON(`data/runs/${run}/catalog.json`)).rows;
+  return S.catalogs[run];
+}
+
+/* ---------------------------------------------------------------- columns */
+const COLUMNS = [
+  { key: "id",       label: "ID",            d: 0, id: true },
+  { key: "tier",     label: "tier" },
+  { key: "ra",       label: "RA",            d: 6 },
+  { key: "dec",      label: "Dec",           d: 6 },
+  { key: "z_spec",   label: "z_spec",        d: 4 },
+  { key: "zred",     label: "z_fit",         d: 4, err: true },
+  { key: "logmass",  label: "log M★",        d: 3, err: true },
+  { key: "sfr10",    label: "SFR₁₀",         d: 3, err: true },
+  { key: "logzsol",  label: "log Z★/Z☉",     d: 3, err: true },
+  { key: "gas_logu", label: "log U",         d: 3, err: true },
+  { key: "frac_obrun", label: "f_obrun",     d: 3, err: true },
+  { key: "fesc",     label: "f_esc",         d: 3 },
+  { key: "MUV",      label: "M_UV",          d: 4 },
+  { key: "chi2_nu",  label: "χ²_ν",          d: 3 },
+  { key: "logZ_evidence", label: "ln Z",     d: 5 },
+];
+function activeColumns(rows) {
+  return COLUMNS.filter(c => rows.some(r => r[c.key] !== null && r[c.key] !== undefined));
+}
+
+/* ----------------------------------------------------------------- router */
+window.addEventListener("hashchange", route);
+async function route() {
+  try {
+    await loadRuns();
+    const h = location.hash.replace(/^#\/?/, "");
+    const parts = h.split("/").filter(Boolean);
+    if (parts[0] === "galaxy" && parts.length >= 3)
+      await viewGalaxy(parts[1], parts[2]);
+    else if (parts[0] === "figures" && parts[1])
+      await viewFigures(parts[1]);
+    else {
+      const run = (parts[0] === "run" && parts[1]) ? parts[1]
+                : (S.runs.runs[0] && S.runs.runs[0].name);
+      if (!run) { app.innerHTML = `<div class="msg">No runs built yet.</div>`; return; }
+      await viewTable(run);
+    }
+  } catch (e) {
+    app.innerHTML = `<div class="msg">Failed to load: ${esc(e.message)}<br>
+      <span class="small">If you opened index.html directly from disk, serve it instead:
+      <code>python -m http.server</code> (browsers block fetch() on file://).</span></div>`;
+  }
+}
+function renderTabs(current) {
+  $("#runTabs").innerHTML = S.runs.runs.map(r =>
+    `<a class="tab ${r.name === current ? "active" : ""}" href="#/run/${r.name}">
+       ${esc(r.label)} <span class="n">(${r.n_galaxies})</span></a>`).join("");
+}
+
+/* ------------------------------------------------------------- table view */
+async function viewTable(run) {
+  renderTabs(run);
+  const rows = await loadCatalog(run);
+  const meta = S.runs.runs.find(r => r.name === run) || {};
+  app.innerHTML = `
+    <div class="card">
+      <h2>${esc(meta.label || run)} <span class="n">— ${rows.length} galaxies</span>
+        <a href="#/figures/${run}" style="float:right;font-size:13.5px;font-weight:500">Catalogue figures →</a></h2>
+      ${meta.description ? `<p class="small" style="margin:0 0 10px">${esc(meta.description)}</p>` : ""}
+      <div class="toolbar">
+        <input type="text" id="q" placeholder="filter by ID…" value="${esc(S.query)}">
+        <label>z<sub>fit</sub> <input type="number" id="zmin" step="0.1" placeholder="min"
+          value="${S.zmin ?? ""}"> – <input type="number" id="zmax" step="0.1" placeholder="max"
+          value="${S.zmax ?? ""}"></label>
+        <span class="spacer"></span>
+        <button class="btn" id="csv">Download CSV</button>
+      </div>
+      <div class="tablewrap"><table class="cat"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+      <div class="pager" id="pager"></div>
+    </div>`;
+  $("#q").addEventListener("input", e => { S.query = e.target.value; S.page = 0; drawTable(run); });
+  $("#zmin").addEventListener("input", e => { S.zmin = e.target.value === "" ? null : +e.target.value; S.page = 0; drawTable(run); });
+  $("#zmax").addEventListener("input", e => { S.zmax = e.target.value === "" ? null : +e.target.value; S.page = 0; drawTable(run); });
+  $("#csv").addEventListener("click", () => downloadCSV(run));
+  drawTable(run);
+}
+function filteredRows(run) {
+  let rows = S.catalogs[run];
+  if (S.query) rows = rows.filter(r => String(r.id).includes(S.query.trim()));
+  if (S.zmin !== null) rows = rows.filter(r => r.zred !== null && r.zred >= S.zmin);
+  if (S.zmax !== null) rows = rows.filter(r => r.zred !== null && r.zred <= S.zmax);
+  const { key, dir } = S.sort;
+  rows = [...rows].sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
+  });
+  return rows;
+}
+function drawTable(run) {
+  const all = filteredRows(run);
+  const cols = activeColumns(S.catalogs[run]);
+  const pages = Math.max(1, Math.ceil(all.length / S.perPage));
+  S.page = Math.min(S.page, pages - 1);
+  const rows = all.slice(S.page * S.perPage, (S.page + 1) * S.perPage);
+
+  $("#thead").innerHTML = "<tr>" + cols.map(c =>
+    `<th data-k="${c.key}">${esc(c.label)}${S.sort.key === c.key
+       ? ` <span class="arr">${S.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`).join("") + "</tr>";
+  $("#thead").querySelectorAll("th").forEach(th => th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (S.sort.key === k) S.sort.dir *= -1; else S.sort = { key: k, dir: 1 };
+    drawTable(run);
+  }));
+
+  $("#tbody").innerHTML = rows.map(r => "<tr data-id='" + r.id + "'>" + cols.map(c => {
+    if (c.id) return `<td class="id">${r.id}</td>`;
+    const v = r[c.key];
+    if (c.err && typeof v === "number")
+      return `<td title="16–84%: ${fmt(r[c.key+"_lo"],4)} … ${fmt(r[c.key+"_hi"],4)}">${fmt(v, c.d ?? 3)}</td>`;
+    return `<td>${typeof v === "number" ? fmt(v, c.d ?? 3) : esc(v ?? "–")}</td>`;
+  }).join("") + "</tr>").join("");
+  $("#tbody").querySelectorAll("tr").forEach(tr => tr.addEventListener("click", () =>
+    location.hash = `#/galaxy/${run}/${tr.dataset.id}`));
+
+  $("#pager").innerHTML = `
+    <span>${all.length} galaxies · page ${S.page + 1}/${pages}</span>
+    <button class="btn" id="pprev" ${S.page === 0 ? "disabled" : ""}>‹ prev</button>
+    <button class="btn" id="pnext" ${S.page >= pages - 1 ? "disabled" : ""}>next ›</button>`;
+  $("#pprev").addEventListener("click", () => { S.page--; drawTable(run); });
+  $("#pnext").addEventListener("click", () => { S.page++; drawTable(run); });
+}
+function downloadCSV(run) {
+  const rows = filteredRows(run);
+  const cols = activeColumns(S.catalogs[run]);
+  const keys = [];
+  cols.forEach(c => { keys.push(c.key); if (c.err) keys.push(c.key + "_lo", c.key + "_hi"); });
+  const lines = [keys.join(",")];
+  rows.forEach(r => lines.push(keys.map(k => r[k] ?? "").join(",")));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `catalogue_${run}.csv`;
+  a.click();
+}
+
+/* ------------------------------------------------------------ galaxy view */
+function figTag(base, caption, cls="") {
+  return `<figure class="fig ${cls}">
+    <img loading="lazy" src="${base}.webp" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='${base}.png'}"
+         alt="${esc(caption)}" onclick="openLightbox(this.src)">
+    <figcaption>${esc(caption)}</figcaption></figure>`;
+}
+window.openLightbox = src => {
+  $("#lightboxImg").src = src;
+  $("#lightbox").classList.add("open");
+};
+
+async function viewGalaxy(run, id) {
+  renderTabs(run);
+  app.innerHTML = `<div class="msg">Loading galaxy ${esc(id)}…</div>`;
+  const g = await getJSON(`data/runs/${run}/galaxies/${id}.json`);
+  const cat = g.catalog || {};
+  const ra = cat.RA_1, dec = cat.DEC_1;
+  const otherRuns = (S.galaxyIndex[String(id)] || [run]);
+  const meta = S.runs.runs.find(r => r.name === run) || {};
+
+  const chips = [];
+  const zr = g.zred || {};
+  if (zr.q50 != null) chips.push(["z (fit)", fmtErr(zr.q50, zr.q16, zr.q84, 4)]);
+  if (cat.z_Spec != null) chips.push(["z_spec", fmt(cat.z_Spec, 4)]);
+  const byName = {}; (g.params || []).forEach(p => byName[p.name] = p);
+  (g.derived || []).forEach(p => byName[p.name] = byName[p.name] || p);
+  if (byName.logmass) chips.push(["log M★/M☉", fmtErr(byName.logmass.q50, byName.logmass.q16, byName.logmass.q84)]);
+  if (byName.SFR10) chips.push(["SFR₁₀ [M☉/yr]", fmtErr(byName.SFR10.q50, byName.SFR10.q16, byName.SFR10.q84)]);
+  const sq = {}; (g.summary || []).forEach(s => sq[s.name] = s);
+  for (const [k, lab] of [["fesc","f_esc"],["MUV","M_UV"],["xion","log ξ_ion"]])
+    if (sq[k]) chips.push([lab, fmtErr(sq[k].value,
+      sq[k].err_lo != null ? sq[k].value - sq[k].err_lo : null,
+      sq[k].err_hi != null ? sq[k].value + sq[k].err_hi : null)]);
+  if (g.gof && g.gof.chi2_nu != null) chips.push(["χ²_ν", fmt(g.gof.chi2_nu)]);
+  if (g.gof && g.gof.logZ != null) chips.push(["ln Z", `${fmt(g.gof.logZ, 5)} <small>± ${fmt(g.gof.logZ_err, 2)}</small>`]);
+
+  app.innerHTML = `
+    <div class="crumb"><a href="#/run/${run}">← back to ${esc(meta.label || run)}</a></div>
+    <div class="card">
+      <div class="gal-head">
+        <h2>JADES ${g.id}</h2>
+        <span class="coords mono">${ra != null ? `${fmt(ra,7)}°, ${fmt(dec,7)}°` : ""}
+          ${ra != null ? " · " + sexagesimal(ra, dec) : ""}</span>
+        <span class="small">${esc(cat.TIER ?? "")}</span>
+        <span class="spacer" style="flex:1"></span>
+        <span class="runbadges">${otherRuns.map(r =>
+          `<a class="runbadge ${r === run ? "active" : ""}" href="#/galaxy/${r}/${id}">${esc(r)}</a>`).join("")}
+        </span>
+      </div>
+      <div class="small">model: <code>${esc(g.model ?? "?")}</code> ·
+        engine: <code>${esc(g.engine ?? "?")}</code> ·
+        ${g.n_samples} posterior samples ·
+        wall time ${g.wall_time_s ? (g.wall_time_s/3600).toFixed(2) + " h" : "–"} ·
+        file <code>${esc(g.npz_file)}</code>
+        ${g.fitsmap_url ? ` · <a href="${g.fitsmap_url}" target="_blank" rel="noopener">open in fitsmap ↗</a>` : ""}
+        · <a href="data/runs/${run}/galaxies/${id}.json" download>download JSON</a>
+      </div>
+      <div class="chips">${chips.map(([k, v]) =>
+        `<div class="chip"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")}</div>
+    </div>
+
+    <div class="card">
+      <h2>Diagnostic figures <span class="n">— click to enlarge</span></h2>
+      <div class="figgrid">
+        ${g.figures.cutout ? figTag(g.figures.cutout,
+            "RGB cutout with Kron aperture (green) and MSA shutters (yellow)") : ""}
+        ${g.figures.fitsmap ? figTag(g.figures.fitsmap,
+            "fitsmap view with NIRCam DR5 photometry and NIRSpec slit overlays") : ""}
+        ${figTag(g.figures.sed, "SED: observed vs posterior-predicted photometry")}
+        ${g.figures.lines ? figTag(g.figures.lines, "Emission lines: predicted / observed flux") : ""}
+        ${figTag(g.figures.kl, "Information gain per parameter, KL(posterior ‖ prior)")}
+        ${g.fitsmap_url ? `
+          <figure class="fig"><div style="padding:8px">
+            <p class="small" style="margin:4px 0 10px">Interactive imaging at this position:</p>
+            <a class="btn primary" style="display:inline-block;padding:9px 16px;border-radius:8px;
+               background:var(--accent);color:#fff" href="${g.fitsmap_url}" target="_blank"
+               rel="noopener">Open fitsmap at RA ${fmt(ra,6)}, Dec ${fmt(dec,6)} ↗</a>
+            <p class="small" style="margin:12px 0 4px">
+              <button class="btn" onclick="embedMap(this, '${g.fitsmap_url}')">embed map here</button></p>
+          </div><figcaption>RGB imaging (fitsmap)</figcaption></figure>` : ""}
+        ${figTag(g.figures.corner, "Posterior corner plot", "full")}
+      </div>
+    </div>
+
+    <div class="cols2">
+      <div class="card">
+        <h2>Posterior parameters</h2>
+        <table class="kv"><thead><tr>
+          <th>parameter</th><th>median</th><th>16%</th><th>84%</th><th>KL [bits]</th>
+        </tr></thead><tbody>
+          ${(g.params || []).map(p => `<tr>
+            <td><code>${esc(p.name)}</code></td>
+            <td>${fmt(p.q50, 4)}</td><td>${fmt(p.q16, 4)}</td><td>${fmt(p.q84, 4)}</td>
+            <td>${p.kl_bits != null ? fmt(p.kl_bits, 3) + (p.kl_fallback ? " *" : "") : "–"}</td>
+          </tr>`).join("")}
+        </tbody></table>
+        ${(g.params || []).some(p => p.kl_fallback) ?
+          `<p class="small">* KL vs a uniform prior over the sampled range (no prior specified).</p>` : ""}
+        ${(g.derived || []).length ? `
+          <details><summary>Derived quantities (${g.derived.length})</summary>
+          <table class="kv"><tbody>
+            ${g.derived.map(p => `<tr><td><code>${esc(p.name)}</code></td>
+              <td>${fmt(p.q50, 4)}</td><td>${fmt(p.q16, 4)}</td><td>${fmt(p.q84, 4)}</td></tr>`).join("")}
+          </tbody></table></details>` : ""}
+        ${(g.summary || []).length ? `
+          <details><summary>Summary-file quantities (${g.summary.length})</summary>
+          <table class="kv"><thead><tr><th>quantity</th><th>value</th><th>−σ</th><th>+σ</th></tr></thead><tbody>
+            ${g.summary.map(s => `<tr><td><code>${esc(s.name)}</code></td>
+              <td>${fmt(s.value, 4)}</td><td>${fmt(s.err_lo, 3)}</td><td>${fmt(s.err_hi, 3)}</td></tr>`).join("")}
+          </tbody></table></details>` : ""}
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>Photometry <span class="n">[nJy]</span></h2>
+          <table class="kv"><thead><tr>
+            <th>filter</th><th>λ [µm]</th><th>observed</th><th>predicted</th><th>χ</th>
+          </tr></thead><tbody>
+            ${(g.photometry || []).map(p => `<tr>
+              <td><code>${esc(p.filter)}</code></td><td>${fmt(p.wl_um, 3)}</td>
+              <td>${fmt(p.obs_njy)} ± ${fmt(p.err_njy, 2)}</td>
+              <td title="16–84%: ${fmt(p.pred_lo)} … ${fmt(p.pred_hi)}">${fmt(p.pred_njy)}</td>
+              <td class="${Math.abs(p.chi ?? 0) > 3 ? "warn" : ""}">${fmt(p.chi, 2)}</td>
+            </tr>`).join("")}
+          </tbody></table>
+        </div>
+        ${(g.lines || []).length ? `
+        <div class="card">
+          <h2>Emission lines <span class="n">[erg s⁻¹ cm⁻²]</span></h2>
+          <table class="kv"><thead><tr>
+            <th>line</th><th>observed</th><th>predicted</th><th>pred/obs</th><th>χ</th>
+          </tr></thead><tbody>
+            ${(g.lines || []).map(l => `<tr>
+              <td>${esc(l.name)}</td>
+              <td>${fmt(l.obs)} ± ${fmt(l.err, 2)}</td>
+              <td title="16–84%: ${fmt(l.pred_lo)} … ${fmt(l.pred_hi)}">${fmt(l.pred)}</td>
+              <td>${fmt(l.ratio)}</td>
+              <td class="${Math.abs(l.chi ?? 0) > 3 ? "warn" : ""}">${fmt(l.chi, 2)}</td>
+            </tr>`).join("")}
+          </tbody></table>
+        </div>` : ""}
+      </div>
+    </div>`;
+  window.scrollTo(0, 0);
+}
+/* -------------------------------------------------- catalogue-wide figures */
+const FSTATE = { flags: { A: true, B: true, C: true, "–": true },
+                 chi2max: null, zmin: null, zmax: null };
+let MZR = undefined;  // lazy-loaded overlay
+
+// viridis colormap (8 anchor stops, linear interpolation)
+const VIRIDIS = [[68,1,84],[70,50,127],[54,92,141],[39,127,142],
+                 [31,161,135],[74,194,109],[159,218,58],[253,231,37]];
+function viridis(t) {
+  t = Math.min(1, Math.max(0, t));
+  const x = t * (VIRIDIS.length - 1), i = Math.min(Math.floor(x), VIRIDIS.length - 2),
+        f = x - i, a = VIRIDIS[i], b = VIRIDIS[i + 1];
+  return `rgb(${a.map((v, k) => Math.round(v + f * (b[k] - v))).join(",")})`;
+}
+
+/* Simmonds et al. (2025), MNRAS 544, 4551: sSFR_MS [Gyr^-1] =
+   s_b (M/1e10)^beta (1+z)^mu; SFR10: s_b=0.05, beta=0.02, mu=2.30,
+   fitted over 9.0 <= logM <= 10.3, 3 <= z <= 9. */
+function sfmsLogSFR10(logm, z) {
+  return Math.log10(0.05) + (1 + 0.02) * (logm - 10) + 1 + 2.30 * Math.log10(1 + z);
+}
+
+function logTicks(lo, hi) {
+  const t = [];
+  for (let e = Math.floor(lo); e <= Math.ceil(hi); e++)
+    for (const m of [1, 2, 5]) {
+      const v = e + Math.log10(m);
+      if (v >= lo - 1e-9 && v <= hi + 1e-9) t.push({ v, major: m === 1 });
+    }
+  return t;
+}
+function linTicks(lo, hi) {
+  const span = hi - lo, step = Math.pow(10, Math.floor(Math.log10(span / 4)));
+  const s = [1, 2, 5, 10].map(m => m * step).find(st => span / st <= 8) || 10 * step;
+  const t = [];
+  for (let v = Math.ceil(lo / s) * s; v <= hi + 1e-9; v += s)
+    t.push({ v: +v.toFixed(10), major: true });
+  return t;
+}
+const fmtTick = v => {
+  const a = Math.abs(v);
+  if (a >= 1e4 || (a < 1e-3 && a > 0)) {
+    const e = Math.round(v);
+    return `1e${e}`;
+  }
+  return +v.toFixed(3);
+};
+
+/* Generic SVG scatter. Values are given in plot space (already log10 if
+   log axis); error bars as [lo, hi] in the same space. */
+function scatterFig(opts) {
+  const W = opts.width || 560, H = opts.height || 430;
+  const ml = 62, mr = opts.mr ?? (opts.colorbar ? 74 : 16), mt = 12, mb = 48;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const pts = opts.points || [];
+  const bg = opts.bg || [];
+  const all = pts.concat(bg);
+  let xs = all.map(p => p.x), ys = all.map(p => p.y);
+  (opts.lines || []).forEach(l => l.pts.forEach(([x, y]) => { xs.push(x); ys.push(y); }));
+  pts.forEach(p => { if (p.ye) { ys.push(p.ye[0], p.ye[1]); } if (p.xe) { xs.push(p.xe[0], p.xe[1]); } });
+  xs = xs.filter(Number.isFinite); ys = ys.filter(Number.isFinite);
+  if (!xs.length) return `<div class="msg">no data after filters</div>`;
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (opts.equal) { x0 = y0 = Math.min(x0, y0); x1 = y1 = Math.max(x1, y1); }
+  const padx = 0.05 * (x1 - x0 || 1), pady = 0.07 * (y1 - y0 || 1);
+  x0 -= padx; x1 += padx; y0 -= pady; y1 += pady;
+  if (opts.xrange) { [x0, x1] = opts.xrange; }
+  if (opts.symy) { const m = Math.max(Math.abs(y0), Math.abs(y1)); y0 = -m; y1 = m; }
+  const X = v => ml + (v - x0) / (x1 - x0) * pw;
+  const Y = v => mt + (1 - (v - y0) / (y1 - y0)) * ph;
+
+  const xticks = (opts.xlog ? logTicks : linTicks)(x0, x1);
+  const yticks = (opts.ylog ? logTicks : linTicks)(y0, y1);
+  let s = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font:11px system-ui">`;
+  // grid + axes
+  for (const t of xticks) s += `<line x1="${X(t.v)}" y1="${mt}" x2="${X(t.v)}" y2="${mt+ph}"
+      stroke="var(--line)" stroke-width="${t.major?1:0.5}" opacity="${t.major?0.7:0.35}"/>`;
+  for (const t of yticks) s += `<line x1="${ml}" y1="${Y(t.v)}" x2="${ml+pw}" y2="${Y(t.v)}"
+      stroke="var(--line)" stroke-width="${t.major?1:0.5}" opacity="${t.major?0.7:0.35}"/>`;
+  if (opts.hband) {
+    const [b0, b1] = opts.hband;
+    s += `<rect x="${ml}" y="${Y(b1)}" width="${pw}" height="${Math.max(0, Y(b0)-Y(b1))}"
+         fill="var(--ink-3)" opacity="0.14"/>`;
+    s += `<line x1="${ml}" y1="${Y(0)}" x2="${ml+pw}" y2="${Y(0)}" stroke="var(--ink-2)" stroke-width="1"/>`;
+  }
+  s += `<rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="none" stroke="var(--ink-3)" stroke-width="1"/>`;
+  for (const t of xticks.filter(t => t.major))
+    s += `<text x="${X(t.v)}" y="${mt+ph+16}" text-anchor="middle" fill="var(--ink-2)">${
+      opts.xlog ? fmtLog(t.v) : fmtTick(t.v)}</text>`;
+  for (const t of yticks.filter(t => t.major))
+    s += `<text x="${ml-7}" y="${Y(t.v)+3.5}" text-anchor="end" fill="var(--ink-2)">${
+      opts.ylog ? fmtLog(t.v) : fmtTick(t.v)}</text>`;
+  s += `<text x="${ml+pw/2}" y="${H-8}" text-anchor="middle" fill="var(--ink)">${opts.xlab}</text>`;
+  s += `<text transform="rotate(-90 14 ${mt+ph/2})" x="14" y="${mt+ph/2}"
+        text-anchor="middle" fill="var(--ink)">${opts.ylab}</text>`;
+
+  // background points (overlay dataset)
+  for (const p of bg)
+    s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="2" fill="var(--ink-3)" opacity="0.35"/>`;
+  // error bars then semi-transparent points
+  const eop = pts.length > 100 ? 0.3 : 0.55;
+  for (const p of pts) {
+    const c = p.c ?? "var(--accent)";
+    if (p.ye && Number.isFinite(p.ye[0]) && Number.isFinite(p.ye[1]))
+      s += `<line x1="${X(p.x)}" y1="${Y(p.ye[0])}" x2="${X(p.x)}" y2="${Y(p.ye[1])}"
+           stroke="${c}" stroke-width="1" opacity="${eop}"/>`;
+    if (p.xe && Number.isFinite(p.xe[0]) && Number.isFinite(p.xe[1]))
+      s += `<line x1="${X(p.xe[0])}" y1="${Y(p.y)}" x2="${X(p.xe[1])}" y2="${Y(p.y)}"
+           stroke="${c}" stroke-width="1" opacity="${eop}"/>`;
+  }
+  const pr = pts.length > 200 ? 3 : 4;
+  for (const p of pts)
+    s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${pr}" fill="${p.c ?? "var(--accent)"}"
+         fill-opacity="0.65" stroke="var(--surface)" stroke-width="0.7" stroke-opacity="0.5"
+         data-id="${p.id}" data-tip="${esc(p.tip || p.id)}" style="cursor:pointer"/>`;
+  // reference / literature relations ON TOP of the points, with a thin white
+  // casing so they stay readable over dense samples
+  for (const l of (opts.lines || [])) {
+    const d = l.pts.map(([x, y], i) => `${i ? "L" : "M"}${X(x)},${Y(y)}`).join("");
+    s += `<path d="${d}" fill="none" stroke="var(--surface)" stroke-width="3.2"
+         opacity="0.85" ${l.dash ? `stroke-dasharray="${l.dash}"` : ""}/>`;
+    s += `<path d="${d}" fill="none" stroke="${l.color || "var(--ink-2)"}"
+         stroke-width="1.4" ${l.dash ? `stroke-dasharray="${l.dash}"` : ""} opacity="0.95"/>`;
+    if (l.label) {
+      const [lx, ly] = l.pts[l.pts.length - 1];
+      s += `<text x="${Math.min(X(lx)+4, ml+pw-2)}" y="${Y(ly)+3}" fill="${l.color || "var(--ink-2)"}"
+            font-size="10" stroke="var(--surface)" stroke-width="2.5" paint-order="stroke">${l.label}</text>`;
+    }
+  }
+
+  // colorbar
+  if (opts.colorbar) {
+    const cbx = ml + pw + 26, cbw = 12, n = 40;
+    for (let i = 0; i < n; i++) {
+      const yy = mt + ph - (i + 1) / n * ph;
+      s += `<rect x="${cbx}" y="${yy}" width="${cbw}" height="${ph/n+0.5}"
+           fill="${viridis(i/(n-1))}"/>`;
+    }
+    const { min, max, label } = opts.colorbar;
+    s += `<text x="${cbx+cbw+4}" y="${mt+ph}" fill="var(--ink-2)">${fmtTick(min)}</text>`;
+    s += `<text x="${cbx+cbw+4}" y="${mt+10}" fill="var(--ink-2)">${fmtTick(max)}</text>`;
+    s += `<text transform="rotate(-90 ${cbx+cbw+30} ${mt+ph/2})" x="${cbx+cbw+30}" y="${mt+ph/2}"
+         text-anchor="middle" fill="var(--ink)">${label}</text>`;
+  }
+  s += `</svg>`;
+  return s;
+}
+const fmtLog = v => {
+  const r = Math.round(v);
+  if (Math.abs(v - r) < 1e-6) {
+    if (r >= -2 && r <= 3) return +(Math.pow(10, r).toPrecision(3));
+    return `1e${r}`;
+  }
+  return "";
+};
+
+/* luminosity distance, flat LCDM H0=70, Om=0.3 (cm) */
+function lumDistCm(z) {
+  if (!(z > 0)) return NaN;
+  const H0 = 70, Om = 0.3, c = 299792.458; // km/s
+  const E = zz => Math.sqrt(Om * Math.pow(1 + zz, 3) + (1 - Om));
+  let s = 0; const n = 200;
+  for (let i = 0; i < n; i++) {
+    const zz = (i + 0.5) * z / n;
+    s += 1 / E(zz);
+  }
+  const dc = (c / H0) * (s * z / n);           // Mpc
+  return (1 + z) * dc * 3.0857e24;             // cm
+}
+/* Balmer-decrement dust correction (Case B Ha/Hb = 2.86; CCM89 k(Ha)=2.53,
+   k(Hb)=3.61). Returns the corrected Ha flux and E(B-V); E(B-V) clamped >= 0.
+   Without a usable Hb flux the observed Ha is returned (ebv = null). */
+function dustCorrHa(fha, fhb) {
+  if (!(fha > 0) || !(fhb > 0)) return { f: fha, ebv: null };
+  const ebv = Math.max(0, 2.5 / (3.61 - 2.53) * Math.log10((fha / fhb) / 2.86));
+  return { f: fha * Math.pow(10, 0.4 * 2.53 * ebv), ebv };
+}
+
+/* Kennicutt & Evans (2012): log SFR = log L(Halpha) - 41.27 */
+function sfrHa(fluxCgs, z) {
+  const dl = lumDistCm(z);
+  if (!Number.isFinite(dl) || !(fluxCgs > 0)) return NaN;
+  const L = 4 * Math.PI * dl * dl * fluxCgs;
+  return Math.pow(10, Math.log10(L) - 41.27);
+}
+
+/* categorical pull-distribution figure: per-category box (16-84%),
+   median tick, individual points coloured by z when the sample is small */
+function distFig(cats, valsPerCat, opts) {
+  const W = opts.width || 1180, H = opts.height || 400;
+  const ml = 62, mr = 16, mt = 12, mb = 92;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const n = cats.length;
+  if (!n) return `<div class="msg">no data after filters</div>`;
+  const allv = valsPerCat.flat().map(v => v.y).filter(Number.isFinite);
+  if (!allv.length) return `<div class="msg">no data after filters</div>`;
+  // robust scale: 98th percentile of |pull| so a handful of extreme outliers
+  // cannot flatten every box; off-scale points are counted per category below
+  const absv = allv.map(Math.abs).sort((a, b) => a - b);
+  const p98 = absv[Math.min(absv.length - 1, Math.floor(0.98 * (absv.length - 1)))];
+  const ymax = Math.max(3.6, Math.min(12, 1.2 * p98));
+  const X = i => ml + (i + 0.5) / n * pw;
+  const Y = v => {
+    const yy = mt + (1 - (Math.max(-ymax, Math.min(ymax, v)) + ymax) / (2 * ymax)) * ph;
+    return Math.max(mt + 3, Math.min(mt + ph - 3, yy));   // keep marks inside
+  };
+  let s = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font:11px system-ui">`;
+  s += `<rect x="${ml}" y="${Y(1)}" width="${pw}" height="${Y(-1)-Y(1)}" fill="var(--ink-3)" opacity="0.14"/>`;
+  s += `<line x1="${ml}" y1="${Y(0)}" x2="${ml+pw}" y2="${Y(0)}" stroke="var(--ink-2)" stroke-width="1"/>`;
+  for (const yv of [3, -3])
+    s += `<line x1="${ml}" y1="${Y(yv)}" x2="${ml+pw}" y2="${Y(yv)}" stroke="var(--bad)"
+         stroke-width="1" stroke-dasharray="3 3" opacity="0.8"/>`;
+  for (const t of linTicks(-ymax, ymax))
+    s += `<text x="${ml-7}" y="${Y(t.v)+3.5}" text-anchor="end" fill="var(--ink-2)">${fmtTick(t.v)}</text>`;
+  s += `<rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="none" stroke="var(--ink-3)"/>`;
+  const bw = Math.min(26, pw / n * 0.5);
+  cats.forEach((cat, i) => {
+    const vals = valsPerCat[i].filter(p => Number.isFinite(p.y));
+    if (vals.length) {
+      const ys = vals.map(p => p.y).sort((a, b) => a - b);
+      const q = f => ys[Math.max(0, Math.min(ys.length - 1, Math.floor(f * (ys.length - 1))))];
+      const [q16, q50, q84] = [q(0.16), q(0.50), q(0.84)];
+      s += `<rect x="${X(i)-bw/2}" y="${Y(q84)}" width="${bw}" height="${Math.max(2, Y(q16)-Y(q84))}"
+           fill="var(--accent)" opacity="0.18" stroke="var(--accent)" stroke-width="0.8"/>`;
+      s += `<line x1="${X(i)-bw/2}" y1="${Y(q50)}" x2="${X(i)+bw/2}" y2="${Y(q50)}"
+           stroke="var(--accent)" stroke-width="2"/>`;
+      // points: subsample crowded categories to <=300 so the strip stays
+      // visible at any sample size (box always uses all values)
+      const step = Math.max(1, Math.ceil(vals.length / 300));
+      const shown = vals.filter((_, j) => j % step === 0);
+      const op = shown.length > 60 ? 0.3 : 0.6, rr = shown.length > 60 ? 2.2 : 3;
+      for (const p of shown) {
+        const clipped = Math.abs(p.y) > ymax;
+        s += `<circle cx="${X(i) + (Math.random()-0.5)*bw*0.7}" cy="${Y(p.y)}" r="${rr}"
+             fill="${p.c}" stroke="var(--surface)" stroke-width="0.5" opacity="${op}"
+             data-id="${p.id}" data-tip="${esc(p.tip)}" style="cursor:pointer"
+             ${clipped ? 'stroke-dasharray="1 1"' : ""}/>`;
+      }
+      // off-scale counters so clipped outliers are never invisible
+      const nUp = vals.filter(p => p.y > ymax).length;
+      const nDn = vals.filter(p => p.y < -ymax).length;
+      if (nUp) s += `<text x="${X(i)}" y="${mt+11}" text-anchor="middle" fill="var(--bad)"
+                     font-size="9">▲${nUp}</text>`;
+      if (nDn) s += `<text x="${X(i)}" y="${mt+ph-4}" text-anchor="middle" fill="var(--bad)"
+                     font-size="9">▼${nDn}</text>`;
+      if (vals.length < 30)
+        s += `<text x="${X(i)}" y="${mt+ph+1}" text-anchor="middle" fill="var(--ink-3)"
+             font-size="8.5">n=${vals.length}</text>`;
+    }
+    s += `<text transform="rotate(-55 ${X(i)} ${mt+ph+12})" x="${X(i)}" y="${mt+ph+12}"
+         text-anchor="end" fill="var(--ink-2)">${esc(cat)}</text>`;
+  });
+  s += `<text transform="rotate(-90 14 ${mt+ph/2})" x="14" y="${mt+ph/2}" text-anchor="middle"
+       fill="var(--ink)">${opts.ylab}</text>`;
+  s += `</svg>`;
+  return s;
+}
+
+function passesFilters(r) {
+  const flag = r.z_flag || "–";
+  if (!FSTATE.flags[flag]) return false;
+  if (FSTATE.chi2max !== null && r.chi2_nu !== null && r.chi2_nu !== undefined
+      && r.chi2_nu > FSTATE.chi2max) return false;
+  const z = r.zred;
+  if (FSTATE.zmin !== null && !(z >= FSTATE.zmin)) return false;
+  if (FSTATE.zmax !== null && !(z <= FSTATE.zmax)) return false;
+  return true;
+}
+
+async function viewFigures(run) {
+  renderTabs(run);
+  const rows = await loadCatalog(run);
+  if (MZR === undefined) {
+    try { MZR = await getJSON("data/overlays/mzr.json"); } catch (e) { MZR = null; }
+  }
+  const meta = S.runs.runs.find(r => r.name === run) || {};
+  const flags = [...new Set(rows.map(r => r.z_flag || "–"))].sort();
+  app.innerHTML = `
+    <div class="crumb"><a href="#/run/${run}">← back to ${esc(meta.label || run)} table</a></div>
+    <div class="card">
+      <h2>Catalogue figures <span class="n">— ${esc(meta.label || run)}</span></h2>
+      <div class="toolbar" id="figfilters">
+        <label>z<sub>spec</sub> flag:</label>
+        ${flags.map(f => `<label><input type="checkbox" data-flag="${f}"
+          ${FSTATE.flags[f] !== false ? "checked" : ""}> ${f}</label>`).join("")}
+        <label style="margin-left:14px">χ²<sub>ν</sub> &lt;
+          <input type="number" id="fchi2" step="0.5" min="0" placeholder="any"
+           value="${FSTATE.chi2max ?? ""}"></label>
+        <label style="margin-left:14px">z<sub>fit</sub>
+          <input type="number" id="fzmin" step="0.1" placeholder="min" value="${FSTATE.zmin ?? ""}"> –
+          <input type="number" id="fzmax" step="0.1" placeholder="max" value="${FSTATE.zmax ?? ""}"></label>
+        <span class="spacer"></span>
+        <span class="small" id="fcount"></span>
+      </div>
+      <p class="small" style="margin:2px 0 0">Galaxies without a χ²<sub>ν</sub> value
+        (runs without a summary CSV) are kept when a χ² cut is set. Click a point to open its galaxy page.</p>
+    </div>
+    <div class="figgrid" id="figs"></div>
+    <div id="figtip" style="position:fixed;display:none;background:var(--surface);border:1px solid var(--line);
+      border-radius:6px;padding:5px 9px;font-size:12px;pointer-events:none;z-index:60;box-shadow:var(--shadow)"></div>`;
+
+  const ff = $("#figfilters");
+  ff.querySelectorAll("input[type=checkbox]").forEach(cb =>
+    cb.addEventListener("change", () => { FSTATE.flags[cb.dataset.flag] = cb.checked; drawFigs(run); }));
+  $("#fchi2").addEventListener("input", e => { FSTATE.chi2max = e.target.value === "" ? null : +e.target.value; drawFigs(run); });
+  $("#fzmin").addEventListener("input", e => { FSTATE.zmin = e.target.value === "" ? null : +e.target.value; drawFigs(run); });
+  $("#fzmax").addEventListener("input", e => { FSTATE.zmax = e.target.value === "" ? null : +e.target.value; drawFigs(run); });
+  drawFigs(run);
+}
+
+function drawFigs(run) {
+  const rows = S.catalogs[run].filter(passesFilters);
+  $("#fcount").textContent = `${rows.length} / ${S.catalogs[run].length} galaxies pass`;
+  const zs = rows.map(r => r.zred).filter(Number.isFinite);
+  const zlo = Math.min(...(zs.length ? zs : [0])), zhi = Math.max(...(zs.length ? zs : [1]));
+  const zc = z => viridis(zhi > zlo ? (z - zlo) / (zhi - zlo) : 0.5);
+  const cb = { min: zlo, max: zhi, label: "z (fit)" };
+  const L10 = Math.log10;
+
+  const linePanel = (key, label) => {
+    const sel = rows.filter(r => r[key+"_obs"] > 0 && r[key+"_pred"] > 0);
+    const pts = sel.map(r => ({
+      x: L10(r[key+"_obs"]), y: L10(r[key+"_pred"]),
+      xe: r[key+"_err"] > 0 && r[key+"_obs"] - r[key+"_err"] > 0
+        ? [L10(r[key+"_obs"] - r[key+"_err"]), L10(r[key+"_obs"] + r[key+"_err"])] : null,
+      ye: r[key+"_pred_lo"] > 0 ? [L10(r[key+"_pred_lo"]), L10(r[key+"_pred_hi"])] : null,
+      c: zc(r.zred), id: r.id,
+      tip: `${r.id} · z=${fmt(r.zred,3)} · obs=${fmt(r[key+"_obs"])} · pred=${fmt(r[key+"_pred"])}`,
+    }));
+    let lines = [], main = "", pull = "";
+    if (pts.length) {
+      const v = pts.flatMap(p => [p.x, p.y]);
+      const lo = Math.min(...v) - 0.3, hi = Math.max(...v) + 0.3;
+      lines = [{ pts: [[lo, lo], [hi, hi]], dash: "4 3", label: "1:1" }];
+      main = scatterFig({ points: pts, lines, xlog: true, ylog: true, equal: true,
+        xlab: `observed ${label} flux [erg s⁻¹ cm⁻²]`, ylab: `predicted ${label} flux`,
+        colorbar: cb });
+      // pull subpanel: (pred - obs) / sigma_obs vs observed flux, shared x
+      const xr = [Math.min(...pts.map(p => p.x)) - 0.05 * (hi - lo) - 0.0,
+                  Math.max(...pts.map(p => p.x)) + 0.05 * (hi - lo)];
+      const ppts = sel.filter(r => r[key+"_err"] > 0).map(r => ({
+        x: L10(r[key+"_obs"]),
+        y: (r[key+"_pred"] - r[key+"_obs"]) / r[key+"_err"],
+        c: zc(r.zred), id: r.id,
+        tip: `${r.id} · pull=${fmt((r[key+"_pred"] - r[key+"_obs"]) / r[key+"_err"], 3)}`,
+      }));
+      const pl = [{ pts: [[xr[0], 3], [xr[1], 3]], dash: "3 3", color: "var(--bad)" },
+                  { pts: [[xr[0], -3], [xr[1], -3]], dash: "3 3", color: "var(--bad)" }];
+      pull = scatterFig({ points: ppts, lines: pl, xlog: true, xrange: xr, symy: true,
+        hband: [-1, 1], height: 210, mr: cb ? 74 : 16,
+        xlab: `observed ${label} flux [erg s⁻¹ cm⁻²]`,
+        ylab: "pull (pred−obs)/σ" });
+    } else {
+      main = scatterFig({ points: pts, lines, xlog: true, ylog: true, equal: true,
+        xlab: `observed ${label} flux`, ylab: `predicted ${label} flux`, colorbar: cb });
+    }
+    return { html: main + pull, n: pts.length,
+             title: `${label}: predicted vs observed, with pull (grey band ±1σ, dashed ±3σ)` };
+  };
+
+  const panels = [];
+  panels.push(linePanel("oiii", "[O III] 5007"));
+  panels.push(linePanel("ha", "Hα"));
+  panels.push(linePanel("hb", "Hβ"));
+
+  // SFR10 from the fit vs SFR(Halpha) via Kennicutt & Evans (2012)
+  {
+    const pts = rows.filter(r => r.ha_obs > 0 && r.sfr10 > 0 && Number.isFinite(r.zred))
+      .map(r => {
+        const dc = dustCorrHa(r.ha_obs, r.hb_obs);
+        const sk = sfrHa(dc.f, r.zred);
+        return Number.isFinite(sk) && sk > 0 ? {
+          x: L10(sk), y: L10(r.sfr10),
+          ye: r.sfr10_lo > 0 ? [L10(r.sfr10_lo), L10(r.sfr10_hi)] : null,
+          c: zc(r.zred), id: r.id,
+          tip: `${r.id} · z=${fmt(r.zred,3)} · SFR(Hα)=${fmt(sk)}` +
+               (dc.ebv === null ? " (no Hβ: uncorrected)"
+                                : ` · E(B−V)=${fmt(dc.ebv,3)}`) +
+               ` · SFR₁₀(fit)=${fmt(r.sfr10)}`,
+        } : null;
+      }).filter(Boolean);
+    let lines = [];
+    if (pts.length) {
+      const v = pts.flatMap(p => [p.x, p.y]);
+      const lo = Math.min(...v) - 0.3, hi = Math.max(...v) + 0.3;
+      lines = [{ pts: [[lo, lo], [hi, hi]], dash: "4 3", label: "1:1" }];
+    }
+    panels.push({ html: scatterFig({ points: pts, lines, xlog: true, ylog: true, equal: true,
+      xlab: "SFR(Hα, dust-corr.) Kennicutt–Evans 2012 [M☉ yr⁻¹]", ylab: "SFR₁₀ from fit [M☉ yr⁻¹]",
+      colorbar: cb }), n: pts.length,
+      title: "SFR₁₀ (fit) vs SFR from dust-corrected Hα (Balmer decrement, Case B " +
+             "Hα/Hβ = 2.86, CCM89 k(Hα)=2.53 k(Hβ)=3.61; Kennicutt & Evans 2012, " +
+             "log SFR = log L(Hα) − 41.27; flat ΛCDM 70/0.3; galaxies without Hβ uncorrected)" });
+  }
+
+  // M* - SFR10 with the Simmonds+25 SFMS
+  {
+    const pts = rows.filter(r => Number.isFinite(r.logmass) && r.sfr10 > 0).map(r => ({
+      x: r.logmass, y: L10(r.sfr10),
+      xe: [r.logmass_lo, r.logmass_hi],
+      ye: r.sfr10_lo > 0 ? [L10(r.sfr10_lo), L10(r.sfr10_hi)] : null,
+      c: zc(r.zred), id: r.id,
+      tip: `${r.id} · z=${fmt(r.zred,3)} · logM=${fmt(r.logmass)} · SFR₁₀=${fmt(r.sfr10)}`,
+    }));
+    const lines = [3, 5, 7, 9].map(z => {
+      const seg = [], ext = [];
+      for (let m = 7.4; m <= 10.31; m += 0.1)
+        (m >= 9.0 ? seg : ext).push([m, sfmsLogSFR10(m, z)]);
+      return [
+        { pts: ext.concat(seg.slice(0, 1)), dash: "2 3", color: zc(z) },
+        { pts: seg, color: zc(z), label: `z=${z}` },
+      ];
+    }).flat();
+    panels.push({ html: scatterFig({ points: pts, lines, ylog: true,
+      xlab: "log M★ / M☉", ylab: "SFR₁₀ [M☉ yr⁻¹]", colorbar: cb }),
+      n: pts.length,
+      title: "Stellar mass vs SFR₁₀ — SFMS from Simmonds et al. (2025), " +
+             "solid where fitted (9.0 ≤ logM★ ≤ 10.3, 3 ≤ z ≤ 9), dotted extrapolated" });
+  }
+
+  // MZR: gas-phase metallicity vs stellar mass
+  {
+    const pts = rows.filter(r => Number.isFinite(r.gas_logz) && Number.isFinite(r.logmass))
+      .map(r => ({
+        x: r.logmass, y: r.gas_logz + 8.69,
+        xe: [r.logmass_lo, r.logmass_hi],
+        ye: Number.isFinite(r.gas_logz_lo) ? [r.gas_logz_lo + 8.69, r.gas_logz_hi + 8.69] : null,
+        c: zc(r.zred), id: r.id,
+        tip: `${r.id} · z=${fmt(r.zred,3)} · 12+log(O/H)=${fmt(r.gas_logz + 8.69)}`,
+      }));
+    const bg = (MZR ? MZR.logm.map((m, i) => ({ x: m, y: MZR.oh[i] })) : []);
+    panels.push({ html: scatterFig({ points: pts, bg, xlab: "log M★ / M☉",
+      ylab: "12 + log(O/H)", colorbar: cb }), n: pts.length,
+      title: "Mass–metallicity relation — 12+log(O/H) = 8.69 + log Z_gas/Z☉" +
+             (MZR ? `; grey: ${MZR.label} (${MZR.logm.length} galaxies)` : "") });
+  }
+
+  // Te-based metallicity (external release) vs our gas-phase metallicity
+  {
+    const pts = rows.filter(r => Number.isFinite(r.oh_te) && Number.isFinite(r.gas_logz))
+      .map(r => ({
+        x: r.oh_te, y: r.gas_logz + 8.69,
+        xe: Number.isFinite(r.oh_te_lo) ? [r.oh_te_lo, r.oh_te_hi] : null,
+        ye: Number.isFinite(r.gas_logz_lo) ? [r.gas_logz_lo + 8.69, r.gas_logz_hi + 8.69] : null,
+        c: zc(r.zred), id: r.id,
+        tip: `${r.id} · Te: ${fmt(r.oh_te)} · fit: ${fmt(r.gas_logz + 8.69)}`,
+      }));
+    let lines = [];
+    if (pts.length) {
+      const v = pts.flatMap(p => [p.x, p.y]);
+      const lo = Math.min(...v) - 0.15, hi = Math.max(...v) + 0.15;
+      lines = [{ pts: [[lo, lo], [hi, hi]], dash: "4 3", label: "1:1" }];
+    }
+    panels.push({ html: scatterFig({ points: pts, lines, equal: true,
+      xlab: `12+log(O/H), Tₑ-based${MZR ? " (" + MZR.label + ")" : ""}`,
+      ylab: "12+log(O/H) from fit (8.69 + log Z_gas/Z☉)", colorbar: cb }),
+      n: pts.length,
+      title: "Tₑ-based metallicity vs fitted gas-phase metallicity (matched on Unique_ID)" });
+  }
+
+  // sample-wide pull distributions per emission line and per filter
+  const distPanel = (field, ylabel, title) => {
+    const catsSet = new Map();  // preserve first-seen order
+    rows.forEach(r => Object.keys(r[field] || {}).forEach(k => catsSet.set(k, true)));
+    let cats = [...catsSet.keys()];
+    if (field === "phot_chi")  // sort filters by wavelength encoded in the name
+      cats = cats.sort((a, b) => parseInt(a.replace(/\D/g, "")) - parseInt(b.replace(/\D/g, "")));
+    const vals = cats.map(cat => rows
+      .filter(r => r[field] && Number.isFinite(r[field][cat]))
+      .map(r => ({ y: r[field][cat], c: zc(r.zred), id: r.id,
+                   tip: `${r.id} · ${cat} · pull=${fmt(r[field][cat], 3)}` })));
+    const nGal = rows.filter(r => r[field]).length;
+    return { html: distFig(cats, vals, { ylab: ylabel }), n: nGal, full: true, title };
+  };
+  panels.push(distPanel("line_chi", "pull (pred−obs)/σ",
+    "Pull distribution per emission line — box: 16–84% (all galaxies), bar: median, grey band ±1σ, " +
+    "dashed ±3σ; crowded columns show a subsample of points; ▲/▼ count off-scale galaxies"));
+  panels.push(distPanel("phot_chi", "pull (pred−obs)/σ",
+    "Pull distribution per filter — box: 16–84% (all galaxies), bar: median, grey band ±1σ, " +
+    "dashed ±3σ; crowded columns show a subsample of points; ▲/▼ count off-scale galaxies"));
+
+  $("#figs").innerHTML = panels.map(p => `
+    <figure class="fig ${p.full ? "full" : ""}" style="text-align:left">
+      ${p.html}
+      <figcaption>${p.title} · ${p.n} galaxies shown</figcaption>
+    </figure>`).join("");
+
+  // hover tooltips + click-through
+  const tip = $("#figtip");
+  $("#figs").querySelectorAll("circle[data-id]").forEach(c => {
+    c.addEventListener("mousemove", e => {
+      tip.style.display = "block";
+      tip.style.left = (e.clientX + 14) + "px";
+      tip.style.top = (e.clientY - 10) + "px";
+      tip.textContent = c.dataset.tip;
+    });
+    c.addEventListener("mouseleave", () => tip.style.display = "none");
+    c.addEventListener("click", () => location.hash = `#/galaxy/${run}/${c.dataset.id}`);
+  });
+}
+
+window.embedMap = (btn, url) => {
+  const fig = btn.closest("figure");
+  fig.querySelector("div").innerHTML =
+    `<iframe class="map" src="${url}" loading="lazy"></iframe>
+     <p class="small">If the map does not appear, the fitsmap host disallows embedding —
+     use the "open in fitsmap" link instead.</p>`;
+};
+
+route();
+</script>
+</body>
+</html>

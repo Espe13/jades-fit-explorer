@@ -1,0 +1,137 @@
+# ---------------------------------------------------------------------------
+# JADES fit-explorer build configuration
+#
+# Add a new fit of the sample by appending an entry to `runs:` and re-running
+#   python build/build_site.py --config build/config.yaml
+# The build is incremental: existing figures are only regenerated when the
+# posterior npz is newer.
+# ---------------------------------------------------------------------------
+
+site_title: "JADES NIRSpec + NIRCam SED-fitting catalogue"
+site_subtitle: "Prospector nested-sampling fits of the JADES DR4/DR5 sample"
+
+# Where the static site is written (index.html lives here already).
+output: ../site
+
+# Master catalogue: coordinates, z_spec, tier, ... merged into every galaxy page.
+catalog_fits: ~/Desktop/PhD/Tools/highz_NIRSpec_NIRCam/data/JADES/dr5_dr4_merged_catalog.fits
+catalog_id_column: ID
+catalog_columns: [RA_1, DEC_1, z_Spec, z_Spec_flag, TIER, NIRSpec_ID, NIRCam_DR5_ID, PARENT_ID, Unique_ID]
+
+# Link template for the interactive map (per-galaxy "view in fitsmap" button).
+# {ra} and {dec} are substituted per galaxy. Adjust to your fitsmap instance.
+fitsmap_url: "https://jades.idies.jhu.edu/?ra={ra}&dec={dec}&zoom=12"
+
+# Per-galaxy static snapshots of the hosted fitsmap with overlay layers on
+# (build/fitsmap_snap.py - needs `pip install playwright` + `playwright
+# install chromium` on the machine you run it on). Layer names are matched
+# case-insensitively against fitsmap's layer-control labels.
+fitsmap_snap:
+  layers: ["NIRCam DR5 Photometry", "NIRSpec Slit"]
+  crop_px: 560
+  zoom: 12
+  settle_ms: 3500
+
+# External datasets overlaid on the catalogue-wide figures page.
+overlays:
+  mzr_fits: "~/Desktop/PhD/Tools/highz_NIRSpec_NIRCam/paper1/MZR_Release_v20260729 (1).fits"
+  mzr_label: "Yuki's MZR release (v2026-07-29)"
+
+# ---------------------------------------------------------------------------
+# Figure output tuning and asset hosting.
+# A full 5000-galaxy x 4-model catalogue is ~20,000 galaxy-fits. At the
+# default corner_dpi=110 that is ~8 GB of figures - far beyond one GitHub
+# Pages repo (~1 GB). Options (combine as needed):
+#   * corner_dpi: 80 roughly halves the corner-plot size;
+#   * asset_shards: N  splits figures into assets/shard0..N-1 so each shard
+#     can be pushed to its own GitHub Pages repository;
+#   * asset_base_url: where the site loads figures from. Use a template with
+#     {shard} (and optionally {run}) for external asset repos.
+# Example for 8 shard repos:
+#   assets_output: ~/jades-assets            # write figures outside site/
+#   asset_shards: 8
+#   asset_base_url: "https://<user>.github.io/jades-assets-{shard}"
+# Then push ~/jades-assets/shard<k>/* to the repo jades-assets-<k> (with
+# Pages enabled). Cutouts are small and always stay in site/assets/cutouts.
+# ---------------------------------------------------------------------------
+figures:
+  corner_dpi: 110
+# assets_output: ../site/assets
+# asset_shards: 1
+# asset_base_url: assets
+
+# ---------------------------------------------------------------------------
+# RGB cutouts with Kron aperture + MSA shutter overlays (build/cutouts.py).
+# Point r/g/b at the same mosaics your fitsmap is built from, then run
+#   python build/cutouts.py --config build/config.yaml
+# BEFORE build_site.py (the site build links any existing cutout images).
+# slits_csv columns: id, ra, dec, pa_deg, width_arcsec, height_arcsec
+# (one row per shutter; several rows per galaxy draw several shutters).
+# A_KRON/B_KRON in the merged catalogue are in 30 mas pixels.
+# ---------------------------------------------------------------------------
+cutouts:
+  size_arcsec: 3.0
+  kron_units: pixel
+  kron_pixel_scale: 0.03
+  kron_scale: 1.0          # multiply the Kron semi-axes (e.g. 2.5 for the SExtractor aperture)
+  # Pre-cut per-galaxy multi-band FITS stamps (one folder per galaxy named
+  # by zero-padded NIRSpec ID; F. D'Eugenio's create_cutouts.py output).
+  # Tried first; galaxies without a stamp folder fall back to fields/hips.
+  stamps_dir: ~/Desktop/PhD/jades-fit-explorer/01_highz_spectra/00_cutouts
+  stamps_bands: {r: F444W, g: F200W, b: F090W}
+  # slits_csv: ~/path/to/msa_shutters.csv
+  # Each channel is either a local mosaic FITS path or "hips:<HiPS-ID>" to
+  # fetch WCS-calibrated cutouts from the CDS hips2fits service (no local
+  # imaging needed; results are cached in build/.hips_cache). Browse HiPS IDs
+  # at https://aladin.cds.unistra.fr/hips/list (search JWST / JADES).
+  # hips_pixel_scale: 0.03      # arcsec/px requested from hips2fits
+  fields:
+    - name: goods-s
+      tier_match: goods-s
+      r: ~/path/to/goods-s/F444W_mosaic.fits   # or e.g. "hips:CDS/P/JWST/..."
+      g: ~/path/to/goods-s/F200W_mosaic.fits
+      b: ~/path/to/goods-s/F090W_mosaic.fits
+    - name: goods-n
+      tier_match: goods-n
+      r: ~/path/to/goods-n/F444W_mosaic.fits
+      g: ~/path/to/goods-n/F200W_mosaic.fits
+      b: ~/path/to/goods-n/F090W_mosaic.fits
+
+# ---------------------------------------------------------------------------
+# Analytic priors used for the per-parameter information gain KL(post || prior).
+# logsfr_ratios[i] automatically use the Student-t prior stored in each npz.
+# Parameters without an entry fall back to a uniform prior over the sampled
+# range (marked with lighter bars in the KL figure).
+# EDIT these to match the priors of your Prospector model.
+# ---------------------------------------------------------------------------
+priors:
+  # logmass:            {dist: uniform, lo: 6.0, hi: 12.0}
+  # Z:                  {dist: uniform, lo: -4.0, hi: 0.19}
+  # gas_logz:           {dist: uniform, lo: -4.0, hi: 0.5}
+  # gas_logu:           {dist: uniform, lo: -4.0, hi: -1.0}
+  # tau_bc_fraction:    {dist: uniform, lo: 0.0, hi: 2.0}
+  # diffuse_tau_kc:     {dist: uniform, lo: 0.0, hi: 4.0}
+  # diffuse_dust_index: {dist: uniform, lo: -1.0, hi: 0.4}
+  # frac_obrun:         {dist: uniform, lo: 0.0, hi: 1.0}
+  # eline_scaling:      {dist: normal, mean: 1.0, sigma: 0.2}
+
+# ---------------------------------------------------------------------------
+# Fit runs. `pattern` must contain a named group (?P<id>...) capturing the
+# galaxy id. `summary_csv` is optional - when present, chi^2, fesc, MUV, etc.
+# are taken from it; otherwise everything is computed from the npz alone.
+# ---------------------------------------------------------------------------
+runs:
+  - name: fesc_ns
+    label: "fesc model"
+    description: >
+      Nested-sampling fits with the fesc (escape-fraction) model.
+    results_dir: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc
+    pattern: 'posterior_jades_(?P<id>\d+)_fesc_ns\.npz$'
+    summary_csv: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc/summary/summary_results_fesc_fesc_ns.csv
+
+  - name: extra_young_ns
+    label: "extra-young model"
+    description: >
+      Nested-sampling fits with the extra-young SFH model.
+    results_dir: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_extra_young
+    pattern: 'posterior_jades_(?P<id>\d+)_extra_young_ns\.npz$'

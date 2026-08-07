@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+build/config_cloud.yaml
+00_highz_sample/
+01_highz_spectra/
+build/.hips_cache/
