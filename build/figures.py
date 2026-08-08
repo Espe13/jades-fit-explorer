@@ -246,22 +246,44 @@ def fig_sed(post, out_path, dpi=150):
                 ms=6, mfc="white", mec=COL_MODEL, mew=1.4,
                 ecolor=COL_MODEL, elinewidth=1.0, capsize=0, zorder=3,
                 label="predicted photometry")
-    # observed photometry
-    ax.errorbar(wl, obs, yerr=err, fmt="o", ms=5, mfc=COL_OBS, mec=COL_OBS,
-                ecolor=COL_OBS, elinewidth=1.0, capsize=0, zorder=4,
-                label="observed photometry")
+    # observed photometry. Bands whose catalogue error exceeds the flux are
+    # non-detections (the Kron error blows up where mosaic coverage is
+    # marginal); drawing them as error bars would span the whole panel on a
+    # log axis, so show them as upper limits instead. They carry essentially
+    # no weight in the likelihood either way.
+    # Reproduce the fit's own mask exactly: run_jades.py flags a band when
+    # |flux| / sigma < phot_ul_snr_threshold, evaluated AFTER the error-floor
+    # inflation (i.e. on the values stored here), and switches that band to a
+    # one-sided chi^2. A threshold of 0 means the run used two-sided Gaussians
+    # throughout, in which case nothing is drawn as an upper limit.
+    ul_thr = float(ex.get("phot_ul_snr_threshold", 0.0) or 0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        snr = np.where(err > 0, np.abs(obs) / err, np.inf)
+    nd = (snr < ul_thr) | (obs <= 0)   # masked in the fit, or unplottable on a log axis
+    det = ~nd
+    ax.errorbar(wl[det], obs[det], yerr=err[det], fmt="o", ms=5,
+                mfc=COL_OBS, mec=COL_OBS, ecolor=COL_OBS, elinewidth=1.0,
+                capsize=0, zorder=4, label="observed photometry")
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    pos = obs[obs > 0]
+    pos = obs[det & (obs > 0)] if det.any() else obs[obs > 0]
     if pos.size:
-        phot_top = 8 * max(obs.max(), p84.max())
+        phot_top = 8 * max(pos.max(), p84.max())
         # leave room for the emission-line peaks, but never let a single very
         # strong line squash the photometry (cap at 30x the photometric range)
         top = phot_top
         if spec_top and np.isfinite(spec_top):
-            top = min(max(phot_top, 1.35 * spec_top), 30 * max(obs.max(), p84.max()))
-        ax.set_ylim(0.2 * pos.min(), top)
+            top = min(max(phot_top, 1.35 * spec_top), 30 * max(pos.max(), p84.max()))
+        bot = 0.2 * pos.min()
+        ax.set_ylim(bot, top)
+        # 2-sigma upper limits for the non-detections, clipped into the panel
+        if nd.any():
+            ul = np.where(err > 0, np.maximum(obs, 0) + 2 * err, np.nan)[nd]
+            ul = np.clip(ul, bot * 1.6, top * 0.88)
+            ax.errorbar(wl[nd], ul, yerr=0.28 * ul, uplims=True, fmt="none",
+                        ecolor=COL_OBS, elinewidth=1.0, alpha=0.75, zorder=4,
+                        label=f"non-detection (2σ upper limit, S/N < {ul_thr:g})")
     ax.set_ylabel(r"$F_\nu$ [nJy]")
     ax.legend(loc="lower right", fontsize=8)
     zred = float(np.median(post["theta"][:, post["param_names"].index("zred")])) \
@@ -273,8 +295,11 @@ def fig_sed(post, out_path, dpi=150):
     chi = (obs - p50) / np.where(err > 0, err, np.nan)
     axr.axhline(0, color=COL_GRID, lw=1)
     axr.axhspan(-1, 1, color="#f0f0f0", zorder=0)
-    axr.plot(wl, chi, "o", ms=4.5, color=COL_MODEL)
-    bad = np.abs(chi) > 3
+    axr.plot(wl[det], chi[det], "o", ms=4.5, color=COL_MODEL)
+    if nd.any():   # non-detections: open symbols, they constrain nothing
+        axr.plot(wl[nd], chi[nd], "o", ms=4.5, mfc="white", mec=COL_MODEL,
+                 mew=1.0)
+    bad = (np.abs(chi) > 3) & det
     if bad.any():
         axr.plot(wl[bad], chi[bad], "o", ms=4.5, color=COL_ACCENT)
     lim = max(3.5, np.nanmax(np.abs(chi)) * 1.15) if np.isfinite(chi).any() else 3.5
