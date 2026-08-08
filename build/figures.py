@@ -18,6 +18,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.patches as mpatches
 
 # ----------------------------------------------------------------------------
 # Style
@@ -94,6 +95,41 @@ def filter_pivot_um(name: str) -> float:
     if name.lower().startswith(("jwst", "nircam", "miri")):
         return val / 100.0
     return val / 1000.0  # HST convention: f435w -> 0.435 um
+
+
+# Approximate bandpass edges (micron, ~half-power points) used only to sketch
+# the filter footprints under the SED. NIRCam values from the JDox filter
+# table; HST ACS/WFC3 from the instrument handbooks.
+BAND_EDGES = {
+    "f070w": (0.618, 0.781), "f090w": (0.795, 1.005), "f115w": (1.013, 1.282),
+    "f140m": (1.331, 1.479), "f150w": (1.331, 1.668), "f162m": (1.542, 1.731),
+    "f164n": (1.635, 1.653), "f150w2": (1.007, 2.380), "f182m": (1.722, 1.968),
+    "f187n": (1.863, 1.885), "f200w": (1.755, 2.226), "f210m": (1.992, 2.201),
+    "f212n": (2.109, 2.134), "f250m": (2.412, 2.595), "f277w": (2.423, 3.132),
+    "f300m": (2.831, 3.157), "f322w2": (2.432, 4.013), "f323n": (3.207, 3.243),
+    "f335m": (3.177, 3.537), "f356w": (3.135, 3.981), "f360m": (3.426, 3.814),
+    "f405n": (4.030, 4.073), "f410m": (3.866, 4.302), "f430m": (4.167, 4.398),
+    "f444w": (3.881, 4.982), "f460m": (4.464, 4.732), "f466n": (4.629, 4.681),
+    "f470n": (4.683, 4.733), "f480m": (4.662, 4.973),
+    # HST (ACS/WFC + WFC3/IR)
+    "f435w": (0.363, 0.487), "f606w": (0.469, 0.716), "f775w": (0.681, 0.863),
+    "f814w": (0.698, 0.960), "f850lp": (0.800, 1.100),
+    "f105w": (0.900, 1.200), "f125w": (1.085, 1.409), "f140w": (1.196, 1.601),
+    "f160w": (1.383, 1.710),
+}
+
+
+def filter_edges_um(name):
+    """(lo, hi) bandpass edges in micron, or None if the filter is unknown."""
+    key = re.sub(r"^(jwst|nircam|miri|hst|acs|wfc3)_", "", str(name).lower())
+    key = re.sub(r"^mod[ab]_", "", key)          # module-split photometry
+    return BAND_EDGES.get(key)
+
+
+def filter_short_name(name):
+    """Display label: strip instrument prefix, keep module tag if present."""
+    s = re.sub(r"^(jwst|nircam|miri|hst|acs|wfc3)_", "", str(name).lower())
+    return s.upper()
 
 
 # ----------------------------------------------------------------------------
@@ -277,6 +313,28 @@ def fig_sed(post, out_path, dpi=150):
             top = min(max(phot_top, 1.35 * spec_top), 30 * max(pos.max(), p84.max()))
         bot = 0.2 * pos.min()
         ax.set_ylim(bot, top)
+
+        # filter footprints: a faint outlined band per filter along the bottom
+        # of the panel, with the filter name above it
+        dex = np.log10(top) - np.log10(bot)
+        base = bot * 10 ** (0.012 * dex)
+        h = 10 ** (0.055 * dex)          # footprint height, constant in log space
+        order = np.argsort([filter_pivot_um(f) if np.isfinite(filter_pivot_um(f))
+                            else 1e9 for f in filts])
+        for rank, k in enumerate(order):
+            ed = filter_edges_um(filts[k])
+            if ed is None:
+                continue
+            lo_e, hi_e = ed
+            ax.add_patch(mpatches.Rectangle(
+                (lo_e, base), hi_e - lo_e, base * (h - 1),
+                facecolor=COL_MODEL, edgecolor=COL_MODEL, alpha=0.13,
+                lw=0.7, zorder=0.5, clip_on=True))
+            # stagger consecutive labels so neighbouring bands never overlap
+            lab_y = base * h * 10 ** ((0.012 + 0.075 * (rank % 2)) * dex)
+            ax.text(np.sqrt(lo_e * hi_e), lab_y, filter_short_name(filts[k]),
+                    ha="center", va="bottom", fontsize=5.4, color="#8a8a8a",
+                    rotation=90, zorder=0.6, clip_on=True)
         # 2-sigma upper limits for the non-detections, clipped into the panel
         if nd.any():
             ul = np.where(err > 0, np.maximum(obs, 0) + 2 * err, np.nan)[nd]
@@ -285,7 +343,8 @@ def fig_sed(post, out_path, dpi=150):
                         ecolor=COL_OBS, elinewidth=1.0, alpha=0.75, zorder=4,
                         label=f"non-detection (2σ upper limit, S/N < {ul_thr:g})")
     ax.set_ylabel(r"$F_\nu$ [nJy]")
-    ax.legend(loc="lower right", fontsize=8)
+    ax.legend(loc="upper left", bbox_to_anchor=(0.012, 0.90), fontsize=7.5,
+              labelspacing=0.35, handletextpad=0.6)
     zred = float(np.median(post["theta"][:, post["param_names"].index("zred")])) \
         if "zred" in post["param_names"] else float(ex.get("redshift", np.nan))
     ax.text(0.02, 0.96, rf"$z = {zred:.3f}$", transform=ax.transAxes,

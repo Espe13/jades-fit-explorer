@@ -182,3 +182,4 @@ runs:
     priors_table: *priors_common
     results_dir: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_extra_young
     pattern: 'posterior_jades_(?P<id>\d+)_extra_young_ns\.npz$'
+    summary_csv: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_extra_young/summary/summary_results_extra_young_extra_young_ns.csv
