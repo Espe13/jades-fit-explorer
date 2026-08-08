@@ -216,19 +216,30 @@ def fig_sed(post, out_path, dpi=150):
         gridspec_kw={"height_ratios": [3, 1], "hspace": 0.05})
 
     # posterior spectrum band
+    spec_top = None
     if "pp_spec_pp" in ex and "pp_spec_wave" in ex:
         wave_um = np.asarray(ex["pp_spec_wave"], float) / 1e4
         lo_w = max(0.3, 0.75 * np.nanmin(wl))
         hi_w = min(30.0, 1.6 * np.nanmax(wl))
         sel = (wave_um > lo_w) & (wave_um < hi_w)
         if sel.sum() > 10:
+            # pp_spec_pp is the CONTINUUM ONLY; the nebular emission lines are
+            # stored separately in pp_spec_line_pp. The photometry prediction
+            # (pp_phot_pp) already contains both, so the plotted spectrum must
+            # add them too or it sits below the predicted photometry in every
+            # line-dominated band.
             spec_raw = np.asarray(ex["pp_spec_pp"], float)[:, sel]
+            if "pp_spec_line_pp" in ex:
+                lines_raw = np.asarray(ex["pp_spec_line_pp"], float)[:, sel]
+                if lines_raw.shape == spec_raw.shape:
+                    spec_raw = spec_raw + lines_raw
             spec = spec_raw * _spec_to_njy(spec_raw, obs)
             w = wave_um[sel]
             s16, s50, s84 = np.percentile(spec, [16, 50, 84], axis=0)
             ax.fill_between(w, s16, s84, color=COL_BAND, alpha=0.55, lw=0,
                             label="model spectrum (16–84%)", zorder=1)
             ax.plot(w, s50, color=COL_MODEL, lw=0.7, alpha=0.9, zorder=2)
+            spec_top = float(np.nanmax(s84)) if np.isfinite(s84).any() else None
 
     # predicted photometry
     ax.errorbar(wl, p50, yerr=[p50 - p16, p84 - p50], fmt="s",
@@ -244,7 +255,13 @@ def fig_sed(post, out_path, dpi=150):
     ax.set_yscale("log")
     pos = obs[obs > 0]
     if pos.size:
-        ax.set_ylim(0.2 * pos.min(), 8 * max(obs.max(), p84.max()))
+        phot_top = 8 * max(obs.max(), p84.max())
+        # leave room for the emission-line peaks, but never let a single very
+        # strong line squash the photometry (cap at 30x the photometric range)
+        top = phot_top
+        if spec_top and np.isfinite(spec_top):
+            top = min(max(phot_top, 1.35 * spec_top), 30 * max(obs.max(), p84.max()))
+        ax.set_ylim(0.2 * pos.min(), top)
     ax.set_ylabel(r"$F_\nu$ [nJy]")
     ax.legend(loc="lower right", fontsize=8)
     zred = float(np.median(post["theta"][:, post["param_names"].index("zred")])) \
