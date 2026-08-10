@@ -153,15 +153,128 @@ def load_posterior(path):
     return out
 
 
+
+# ----------------------------------------------------------------------------
+# SFR windows reconstructed from the posterior chain
+# ----------------------------------------------------------------------------
+# Flat LCDM matching tursa.common.config (H0=67.4, Om0=0.315). The radiation
+# term (Tcmb0=2.726) is omitted: it shifts the age by <0.2 per cent, far below
+# anything visible in a corner panel.
+_H0, _OM = 67.4, 0.315
+_OL = 1.0 - _OM
+_MPC_KM = 3.0856775814913673e19
+_YR_S = 3.1557e7
+_Z_LIMIT_SFH = 20.0
+_TBINMAX_FLOOR_YR = 10.0 ** 7.1
+
+
+def _age_yr(z):
+    z = np.asarray(z, dtype=float)
+    t = (2.0 / (3.0 * np.sqrt(_OL))) * np.arcsinh(
+        np.sqrt(_OL / _OM) * (1.0 + z) ** -1.5) / (_H0 / _MPC_KM)
+    return t / _YR_S
+
+
+def _agebins_yr(zred, n_bins):
+    """Per-sample lookback edges [yr]; port of zred_to_agebins_extra_young."""
+    z = np.atleast_1d(np.asarray(zred, dtype=float))
+    tb = np.maximum(_age_yr(z) - _age_yr(_Z_LIMIT_SFH), _TBINMAX_FLOOR_YR)
+    lt = np.log10(tb)
+    head = np.array([0.0, np.log10(3.0e6), np.log10(5.0e6), 7.0])
+    m = int(n_bins) - 2
+    frac = np.arange(1, m) / (m - 1.0)
+    return 10.0 ** np.concatenate(
+        [np.repeat(head[None, :], z.size, axis=0),
+         7.0 + (lt[:, None] - 7.0) * frac[None, :]], axis=1)
+
+
+def sfr_windows_from_chain(post, windows_yr=(5.0e6, 1.0e7, 1.0e8)):
+    """Mean SFR over each window, per posterior sample.
+
+    Rebuilds the SFH from logsfr_ratios + logmass on each sample's OWN age-bin
+    grid (the grid depends on zred, which is sampled). Returns
+    ``{window_yr: array (N,)}`` or ``None`` when the chain lacks the pieces.
+    """
+    names = post["param_names"]
+    theta = post["theta"]
+    ex = post.get("extra", {})
+    n_log = sum(n.startswith("logsfr_ratios") for n in names)
+    if n_log < 2 or "logmass" not in names:
+        return None
+    ratios = theta[:, :n_log]
+    logmass = theta[:, names.index("logmass")]
+    if "zred" in names:
+        zred = theta[:, names.index("zred")]
+    elif "redshift" in ex:
+        zred = np.full(theta.shape[0], float(np.asarray(ex["redshift"]).item()))
+    else:
+        return None
+    n_bins = int(np.asarray(ex["n_bins_sfh"]).item()) if "n_bins_sfh" in ex \
+        else n_log + 1
+    edges = _agebins_yr(zred, n_bins)
+    if edges.shape[1] != n_log + 2:          # grid / ratio mismatch: bail out
+        return None
+    dt = np.abs(np.diff(edges, axis=1))
+    sr = 10.0 ** np.concatenate(
+        [np.zeros((ratios.shape[0], 1)), -np.cumsum(ratios, axis=1)], axis=1)
+    if edges[0, 0] > edges[0, -1]:
+        sr = sr[:, ::-1]
+    norm = np.sum(sr * dt, axis=1, keepdims=True)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        sfr = (sr / norm) * (10.0 ** logmass)[:, None]
+    lo = np.minimum(edges[:, :-1], edges[:, 1:])
+    hi = np.maximum(edges[:, :-1], edges[:, 1:])
+    out = {}
+    for w in windows_yr:
+        ov = np.clip(np.minimum(hi, w) - np.maximum(lo, 0.0), 0.0, None)
+        out[w] = np.sum(sfr * ov, axis=1) / w
+    return out
+
+
+_SFR_WINDOW_LABEL = {5.0e6: r"$\log\,\mathrm{SFR}_{5}$",
+                     1.0e7: r"$\log\,\mathrm{SFR}_{10}$",
+                     1.0e8: r"$\log\,\mathrm{SFR}_{100}$"}
+
+
+def corner_matrix(post, windows_yr=(5.0e6, 1.0e7, 1.0e8)):
+    """(theta_display, labels) for the corner plot.
+
+    The 11 logsfr_ratios are replaced by log SFR averaged over the requested
+    windows: the ratios are nuisance parameters that nobody reads off a corner,
+    whereas the SFR windows are the quantities the catalogue reports.
+    """
+    names = post["param_names"]
+    theta = post["theta"]
+    keep = [i for i, n in enumerate(names) if not n.startswith("logsfr_ratios")]
+    cols = [theta[:, i] for i in keep]
+    labels = [param_label(names[i]) for i in keep]
+    win = sfr_windows_from_chain(post, windows_yr)
+    if win:
+        for w in windows_yr:
+            v = np.asarray(win[w], dtype=float)
+            good = np.isfinite(v) & (v > 0)
+            if good.sum() < 0.5 * v.size:     # degenerate: skip this window
+                continue
+            lv = np.full(v.shape, np.nan)
+            lv[good] = np.log10(v[good])
+            cols.append(lv)
+            labels.append(_SFR_WINDOW_LABEL.get(
+                w, r"$\log\,\mathrm{SFR}$"))
+    M = np.column_stack(cols)
+    ok = np.all(np.isfinite(M), axis=1)
+    if ok.sum() >= 100:                       # drop non-finite draws
+        M = M[ok]
+    return M, labels
+
+
 # ----------------------------------------------------------------------------
 # Corner plot
 # ----------------------------------------------------------------------------
 
 def fig_corner(post, out_path, dpi=110):
-    theta = post["theta"]
-    names = post["param_names"]
+    theta, disp_labels = corner_matrix(post)
     n = theta.shape[1]
-    size = max(1.05 * n, 6.0)
+    size = max(1.15 * n, 6.0)
     fig, axes = plt.subplots(n, n, figsize=(size, size))
     lims = [np.percentile(theta[:, i], [0.5, 99.5]) for i in range(n)]
     lims = [(lo - 0.05 * (hi - lo), hi + 0.05 * (hi - lo)) for lo, hi in lims]
@@ -194,13 +307,13 @@ def fig_corner(post, out_path, dpi=110):
             if i < n - 1:
                 ax.set_xticklabels([])
             else:
-                ax.set_xlabel(param_label(names[j]), fontsize=7)
+                ax.set_xlabel(disp_labels[j], fontsize=7)
                 for lb in ax.get_xticklabels():
                     lb.set_rotation(45)
             if j > 0 or i == 0:
                 ax.set_yticklabels([])
             else:
-                ax.set_ylabel(param_label(names[i]), fontsize=7)
+                ax.set_ylabel(disp_labels[i], fontsize=7)
 
     fig.subplots_adjust(hspace=0.06, wspace=0.06,
                         left=0.05, right=0.99, bottom=0.05, top=0.99)
@@ -253,8 +366,40 @@ def fig_sed(post, out_path, dpi=150):
 
     # posterior spectrum band
     spec_top = None
-    if "pp_spec_pp" in ex and "pp_spec_wave" in ex:
-        wave_um = np.asarray(ex["pp_spec_wave"], float) / 1e4
+    # The stored wavelength grid is `csp.wave * (1 + obs.zred)`, stamped with
+    # the redshift the predictor was BUILT at. For galaxies fitted with a free
+    # redshift (no spec-z; seeded at observations.DEFAULT_FREE_ZRED = 7.0) the
+    # posterior moves away from that seed, and the flux values are correct for
+    # the posterior redshift while this axis is not. Re-stamp it here.
+    _z_build = ex.get("redshift")
+    try:
+        _z_build = float(np.asarray(_z_build).item())
+    except Exception:
+        _z_build = np.nan
+    _z_post = float(np.median(post["theta"][:, post["param_names"].index("zred")])) \
+        if "zred" in post["param_names"] else np.nan
+    _wave_fix = 1.0
+    if np.isfinite(_z_build) and np.isfinite(_z_post) and \
+            abs(_z_post - _z_build) > 1e-3:
+        _wave_fix = (1.0 + _z_post) / (1.0 + _z_build)
+    if "pp_spec_pct" in ex and "pp_spec_wave" in ex:
+        # thinned posterior (see build/thin_posteriors.py): the 16/50/84
+        # percentiles of continuum+lines are stored directly
+        wave_um = np.asarray(ex["pp_spec_wave"], float) * _wave_fix / 1e4
+        lo_w = max(0.3, 0.75 * np.nanmin(wl))
+        hi_w = min(30.0, 1.6 * np.nanmax(wl))
+        sel = (wave_um > lo_w) & (wave_um < hi_w)
+        if sel.sum() > 10:
+            spec_raw = np.asarray(ex["pp_spec_pct"], float)[:, sel]
+            spec = spec_raw * _spec_to_njy(spec_raw, obs)
+            w = wave_um[sel]
+            s16, s50, s84 = spec[0], spec[1 if spec.shape[0] > 1 else 0], spec[-1]
+            ax.fill_between(w, s16, s84, color=COL_BAND, alpha=0.55, lw=0,
+                            label="model spectrum (16–84%)", zorder=1)
+            ax.plot(w, s50, color=COL_MODEL, lw=0.7, alpha=0.9, zorder=2)
+            spec_top = float(np.nanmax(s84)) if np.isfinite(s84).any() else None
+    elif "pp_spec_pp" in ex and "pp_spec_wave" in ex:
+        wave_um = np.asarray(ex["pp_spec_wave"], float) * _wave_fix / 1e4
         lo_w = max(0.3, 0.75 * np.nanmin(wl))
         hi_w = min(30.0, 1.6 * np.nanmax(wl))
         sel = (wave_um > lo_w) & (wave_um < hi_w)

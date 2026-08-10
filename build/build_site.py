@@ -441,6 +441,10 @@ def build_run(run_cfg, cfg, master, te_map, out_root, jobs, force, no_figures,
     results_dir = Path(os.path.expanduser(run_cfg["results_dir"]))
     pattern = run_cfg.get("pattern", r"posterior_jades_(?P<id>\d+)_.*\.npz$")
     rx = re.compile(pattern)
+    if not results_dir.is_dir():
+        print(f"  run '{name}': results_dir does not exist yet ({results_dir})"
+              " - skipped")
+        return None
     files = sorted(p for p in results_dir.iterdir()
                    if p.suffix == ".npz" and rx.search(p.name))
     print(f"  run '{name}': {len(files)} posterior files in {results_dir}")
@@ -471,10 +475,15 @@ def build_run(run_cfg, cfg, master, te_map, out_root, jobs, force, no_figures,
     for p in files:
         gid = int(rx.search(p.name).group("id"))
         shard = gid % shards
-        sub = (f"shard{shard}/" if shards > 1 else "") + name
+        sub = ((f"shard{shard}/" if shards > 1 else "") + name
+               if "{run}" not in base_url else name)
         out_assets = assets_output / sub
-        if "{" in base_url:
-            # external template, e.g. https://user.github.io/jades-assets-{shard}
+        if "{run}" in base_url:
+            # one repo PER RUN, e.g. https://user.github.io/jades-assets-{run}
+            # the run name is already in the host path, so do not repeat it
+            asset_url = base_url.format(shard=shard, run=name).rstrip("/")
+        elif "{" in base_url:
+            # hash-sharded, e.g. https://user.github.io/jades-assets-{shard}
             asset_url = base_url.format(shard=shard, run=name).rstrip("/") + "/" + name
         else:
             asset_url = base_url.rstrip("/") + "/" + sub

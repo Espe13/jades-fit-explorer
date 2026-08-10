@@ -48,14 +48,14 @@ overlays:
 #   * asset_base_url: where the site loads figures from. Use a template with
 #     {shard} (and optionally {run}) for external asset repos.
 # Example for 8 shard repos:
-#   assets_output: ~/jades-assets            # write figures outside site/
-#   asset_shards: 8
-#   asset_base_url: "https://<user>.github.io/jades-assets-{shard}"
+assets_output: ~/Desktop/PhD/jades-assets
+asset_shards: 1
+asset_base_url: "https://www.amanda-stoffers.de/jades-assets-{run}"
 # Then push ~/jades-assets/shard<k>/* to the repo jades-assets-<k> (with
 # Pages enabled). Cutouts are small and always stay in site/assets/cutouts.
 # ---------------------------------------------------------------------------
 figures:
-  corner_dpi: 110
+  corner_dpi: 80
 # assets_output: ../site/assets
 # asset_shards: 1
 # asset_base_url: assets
@@ -157,13 +157,38 @@ runs:
       redshift sampled with a per-galaxy prior tied to the catalogue z_spec.
       The additional free parameter frac_obrun lets a fraction of the O/B
       stars run away from their birth clouds / escape, reducing the nebular
-      line and continuum emission relative to the ionizing output.
+      line and continuum emission relative to the ionizing output. This run
+      uses the default runaway_bc geometry, in which frac_obrun bypasses
+      birth-cloud dust only; the picket-fence run is the alternative.
     priors_table:
       - ["frac_obrun", "Uniform(0, 1)"]
       - *priors_common
     results_dir: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc
     pattern: 'posterior_jades_(?P<id>\d+)_fesc_ns\.npz$'
     summary_csv: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc/summary/summary_results_fesc_fesc_ns.csv
+
+  - name: fesc_pc_ns
+    label: "picket-fence model"
+    description: >
+      Nested-sampling fits with the picket-fence escape model.
+    model_description: >
+      Identical model and sampler to the fesc run (8-bin continuity SFH on the
+      extra-young age grid, BPASS 2.2 with CLOUDY nebular emission, Charlot &
+      Fall 2000 + Kriek & Conroy 2013 dust, Madau 1995 IGM, per-galaxy
+      redshift prior, frac_obrun free), but run with the picket-fence escape
+      geometry (--fesc_geometry picket): partial covering in which the escaped
+      channel bypasses ALL dust and the nebular emission receives no bypass
+      mix, so the escape fraction imprints on the >912 A continuum rather than
+      only on the birth-cloud attenuation (Giovinazzo et al. 2026 geometry).
+      The fesc run uses the default runaway_bc geometry, where frac_obrun
+      bypasses birth-cloud dust only; comparing ln Z between the two therefore
+      tests which escape geometry each galaxy prefers.
+    priors_table:
+      - ["frac_obrun", "Uniform(0, 1)"]
+      - *priors_common
+    results_dir: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc_pc
+    pattern: 'posterior_jades_(?P<id>\d+)_fesc_ns\.npz$'
+    summary_csv: ~/Desktop/PhD/Tursa/Tursa/jades_full/results_fesc_pc/summary/summary_results_fesc_pc_fesc_ns.csv
 
   - name: extra_young_ns
     label: "extra-young model"
