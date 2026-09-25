@@ -158,6 +158,10 @@ select:focus-visible,input:focus-visible,button:focus-visible,
 #selcard td{padding:1px 0}
 #selcard td:first-child{color:var(--ink3)}
 #selcard td:last-child{text-align:right}
+.links{list-style:none; margin:0; padding:0}
+.links li{margin:0 0 6px; color:var(--ink3); font-size:11.5px; line-height:1.4}
+.links a{text-decoration:none; border-bottom:1px solid var(--line2)}
+.links a:hover{border-bottom-color:var(--accent)}
 .vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
 </style>
 </head>
@@ -264,6 +268,17 @@ select:focus-visible,input:focus-visible,button:focus-visible,
       <a href="index.html">catalogue table</a>, which is keyboard-navigable and
       screen-reader friendly. Colour is never the only channel: the legend is
       always shown and the hover card gives values.</p>
+
+      <h2>Links</h2>
+      <ul class="links">
+        <li><a href="https://www.amanda-stoffers.de/ceridwen/">CERIDWEN</a>
+            &mdash; the SED-fitting code behind these fits
+            (<a href="https://github.com/Espe13/ceridwen">source</a>)</li>
+        <li><a href="https://www.amanda-stoffers.de/">Amanda Stoffers</a>
+            &mdash; Kavli Institute for Cosmology, Cambridge</li>
+        <li><a href="https://github.com/Espe13/jades-fit-explorer">This site&rsquo;s
+            source</a></li>
+      </ul>
     </aside>
   </div>
 </div>
