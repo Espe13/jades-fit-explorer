@@ -158,10 +158,20 @@ select:focus-visible,input:focus-visible,button:focus-visible,
 #selcard td{padding:1px 0}
 #selcard td:first-child{color:var(--ink3)}
 #selcard td:last-child{text-align:right}
-.links{list-style:none; margin:0; padding:0}
-.links li{margin:0 0 6px; color:var(--ink3); font-size:11.5px; line-height:1.4}
-.links a{text-decoration:none; border-bottom:1px solid var(--line2)}
-.links a:hover{border-bottom-color:var(--accent)}
+#navlinks{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+#navlinks .sep{width:1px; height:18px; background:var(--line2); margin:0 2px}
+#navlinks a{
+  display:inline-flex; align-items:center; gap:5px;
+  border:1px solid var(--line2); background:var(--panel); color:var(--ink2);
+  padding:4px 10px; border-radius:6px; font-size:12px; text-decoration:none;
+  white-space:nowrap;
+}
+#navlinks a:hover,#navlinks a:focus-visible{
+  border-color:var(--accent); color:var(--accent); background:#f4f5fb;
+}
+#navlinks a::after{content:"\2197"; font-size:10px; color:var(--ink3)}
+#navlinks a:hover::after,#navlinks a:focus-visible::after{color:var(--accent)}
+@media (max-width:760px){#navlinks a{padding:3px 8px; font-size:11.5px}}
 .vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
 </style>
 </head>
@@ -172,6 +182,17 @@ select:focus-visible,input:focus-visible,button:focus-visible,
     <span class="sub">scaling relations as rotating projections of the fitted parameter space</span>
     <span class="spacer"></span>
     <div id="runtabs" role="group" aria-label="Model run"></div>
+    <nav id="navlinks" aria-label="Related sites">
+      <span class="sep" aria-hidden="true"></span>
+      <a href="https://www.amanda-stoffers.de/ceridwen/"
+         title="CERIDWEN - the SED-fitting code behind these fits">CERIDWEN</a>
+      <a href="https://github.com/Espe13/ceridwen"
+         title="CERIDWEN source code on GitHub">Code</a>
+      <a href="https://www.amanda-stoffers.de/"
+         title="Amanda Stoffers, Kavli Institute for Cosmology, Cambridge">Amanda&nbsp;Stoffers</a>
+      <a href="https://github.com/Espe13/jades-fit-explorer"
+         title="Source of this site on GitHub">Site&nbsp;source</a>
+    </nav>
   </header>
 
   <div id="main">
@@ -269,16 +290,6 @@ select:focus-visible,input:focus-visible,button:focus-visible,
       screen-reader friendly. Colour is never the only channel: the legend is
       always shown and the hover card gives values.</p>
 
-      <h2>Links</h2>
-      <ul class="links">
-        <li><a href="https://www.amanda-stoffers.de/ceridwen/">CERIDWEN</a>
-            &mdash; the SED-fitting code behind these fits
-            (<a href="https://github.com/Espe13/ceridwen">source</a>)</li>
-        <li><a href="https://www.amanda-stoffers.de/">Amanda Stoffers</a>
-            &mdash; Kavli Institute for Cosmology, Cambridge</li>
-        <li><a href="https://github.com/Espe13/jades-fit-explorer">This site&rsquo;s
-            source</a></li>
-      </ul>
     </aside>
   </div>
 </div>

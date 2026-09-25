@@ -54,6 +54,23 @@ header.site h1 { margin: 0 0 2px; font-size: 22px; font-weight: 650; letter-spac
 header.site h1 a { color: var(--ink); }
 header.site .sub { color: var(--ink-2); font-size: 14px; margin: 0 0 14px; }
 
+#navlinks { display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  justify-content: flex-end; margin: 0 0 14px; }
+#navlinks a {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
+  padding: 5px 11px; border-radius: 8px; font-size: 13px; text-decoration: none;
+  white-space: nowrap;
+}
+#navlinks a:hover, #navlinks a:focus-visible {
+  border-color: var(--accent); color: var(--accent); background: var(--accent-soft);
+  text-decoration: none;
+}
+#navlinks a::after { content: "\2197"; font-size: 10px; color: var(--ink-3); }
+#navlinks a:hover::after, #navlinks a:focus-visible::after { color: var(--accent); }
+@media (max-width: 760px) { #navlinks { justify-content: flex-start; }
+  #navlinks a { padding: 4px 9px; font-size: 12px; } }
+
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: -1px; }
 .tab {
   padding: 7px 14px; border: 1px solid var(--line); border-bottom: none;
@@ -164,6 +181,16 @@ sub.eb, sup.eb { font-size: 9.5px; color: var(--ink-3); }
 <body>
 <div class="wrap">
   <header class="site">
+    <nav id="navlinks" aria-label="Related sites">
+      <a href="https://www.amanda-stoffers.de/ceridwen/"
+         title="CERIDWEN - the SED-fitting code behind these fits">CERIDWEN</a>
+      <a href="https://github.com/Espe13/ceridwen"
+         title="CERIDWEN source code on GitHub">Code</a>
+      <a href="https://www.amanda-stoffers.de/"
+         title="Amanda Stoffers, Kavli Institute for Cosmology, Cambridge">Amanda&nbsp;Stoffers</a>
+      <a href="https://github.com/Espe13/jades-fit-explorer"
+         title="Source of this site on GitHub">Site&nbsp;source</a>
+    </nav>
     <h1><a href="#/" id="siteTitle">JADES fit explorer</a></h1>
     <p class="sub" id="siteSub"></p>
     <p class="sub"><a href="manifold.html">Explore the population as a rotating
