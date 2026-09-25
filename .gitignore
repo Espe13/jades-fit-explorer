@@ -6,3 +6,4 @@ build/config_cloud.yaml
 01_highz_spectra/
 build/.hips_cache/
 MAINTAINER_NOTES.md
+site/data/manifold/_superseded_bpass/

@@ -1,0 +1,1127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JADES SED manifold</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='5' cy='10' r='2' fill='%2386b6ef'/%3E%3Ccircle cx='9' cy='6' r='2' fill='%232a78d6'/%3E%3Ccircle cx='12' cy='11' r='1.6' fill='%23184f95'/%3E%3C/svg%3E">
+<meta name="description" content="Scaling relations as rotating projections of the JADES SED-fitting parameter space.">
+<style>
+:root{
+  /* House paper palette (paper-figures skill): five accents plus neutrals.
+     No green, yellow, purple or viridis anywhere. */
+  --surface:#fcfcfb; --panel:#ffffff;
+  --ink:#222222; --ink2:#575d63; --ink3:#9098a1;
+  --line:#e3e5e8; --line2:#d9dce0;
+  --blue:#6170b9; --coral:#ff7f50; --crim:#dc143c; --pink:#f4a3c0;
+  --dkred:#7a0b21; --softblue:#a3acd8; --navy:#141f4d; --grey:#9098a1;
+  --accent:#6170b9; --accent2:#ff7f50; --neutral:#9098a1;
+  --focus:#6170b9;
+  font-synthesis-weight:none;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--surface); color:var(--ink);
+  font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent)}
+h1,h2,h3{margin:0; font-weight:600}
+button,select,input{font:inherit; color:inherit}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-variant-numeric:tabular-nums}
+
+/* ---- shell -------------------------------------------------------- */
+#shell{display:grid; grid-template-rows:auto 1fr; height:100%}
+header{
+  display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+  padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel);
+}
+header h1{font-size:15px; letter-spacing:-.01em}
+header .sub{color:var(--ink2); font-size:12px}
+header .spacer{flex:1}
+#runtabs{display:flex; gap:2px}
+#runtabs button{
+  border:1px solid var(--line2); background:var(--panel); color:var(--ink2);
+  padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px;
+}
+#runtabs button[aria-pressed=true]{
+  background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;
+}
+#main{display:grid; grid-template-columns:238px 1fr 232px; min-height:0}
+@media (max-width:1100px){
+  #main{grid-template-columns:1fr; grid-auto-rows:min-content}
+  #stage{height:64vh}
+}
+aside{
+  border-right:1px solid var(--line); background:var(--panel);
+  padding:12px 14px 24px; overflow:auto;
+}
+aside.right{border-right:0; border-left:1px solid var(--line)}
+aside h2{
+  font-size:11px; text-transform:uppercase; letter-spacing:.07em;
+  color:var(--ink3); margin:18px 0 7px;
+}
+aside h2:first-child{margin-top:0}
+.field{margin:0 0 9px}
+.field label{display:block; color:var(--ink2); margin-bottom:3px; font-size:12px}
+select,input[type=number],input[type=search]{
+  width:100%; padding:5px 7px; border:1px solid var(--line2); border-radius:6px;
+  background:var(--panel);
+}
+select:focus-visible,input:focus-visible,button:focus-visible,
+[tabindex]:focus-visible{outline:2px solid var(--focus); outline-offset:1px}
+.row{display:flex; gap:6px}
+.row>*{flex:1; min-width:0}
+.checks{display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:2px}
+.checks.col{flex-direction:column; gap:3px}
+.checks label{display:flex; align-items:center; gap:4px; color:var(--ink2); font-size:12px}
+.relnote{display:flex; gap:6px; margin:6px 0; line-height:1.35}
+.relnote i{flex:none; width:11px; height:11px; margin-top:4px; display:inline-block}
+.relnote a{text-decoration:none; border-bottom:1px solid var(--line2)}
+.checks input{accent-color:var(--accent)}
+
+.preset{
+  display:block; width:100%; text-align:left; border:1px solid var(--line2);
+  background:var(--panel); border-radius:7px; padding:6px 9px; margin-bottom:5px;
+  cursor:pointer; line-height:1.3;
+}
+.preset:hover{border-color:var(--accent); background:#f2f3fa}
+.preset[aria-pressed=true]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.preset b{display:block; font-weight:600; font-size:12.5px}
+.preset span{color:var(--ink3); font-size:11px}
+
+/* ---- stage -------------------------------------------------------- */
+#stage{position:relative; min-width:0; background:var(--surface)}
+#plot{display:block; width:100%; height:100%; touch-action:none; cursor:grab}
+#plot.dragging{cursor:grabbing}
+#axisreadout{
+  position:absolute; left:14px; bottom:12px; pointer-events:none;
+  color:var(--ink2); font-size:11.5px; background:rgba(252,252,251,.86);
+  border:1px solid var(--line); border-radius:6px; padding:5px 8px; max-width:56%;
+}
+#axisreadout b{color:var(--ink); font-weight:600}
+#hint{
+  position:absolute; right:14px; top:12px; color:var(--ink3); font-size:11.5px;
+  background:rgba(252,252,251,.86); border:1px solid var(--line);
+  border-radius:6px; padding:5px 8px; pointer-events:none;
+}
+#tip{
+  position:absolute; pointer-events:none; z-index:5; display:none;
+  background:var(--panel); border:1px solid var(--line2); border-radius:7px;
+  box-shadow:0 6px 20px rgba(0,0,0,.12); padding:7px 9px; min-width:150px;
+}
+#tip .id{font-weight:600; margin-bottom:3px}
+#tip table{border-collapse:collapse; font-size:11.5px}
+#tip td{padding:0 0 1px}
+#tip td:first-child{color:var(--ink3); padding-right:8px}
+#busy{
+  position:absolute; inset:0; display:grid; place-content:center; gap:8px;
+  background:var(--surface); color:var(--ink2); text-align:center;
+}
+#busy .bar{width:190px; height:3px; background:var(--line); border-radius:2px; overflow:hidden}
+#busy .bar i{display:block; height:100%; width:30%; background:var(--accent)}
+
+/* ---- legend ------------------------------------------------------- */
+#legend .ramp{height:11px; border-radius:3px; border:1px solid var(--line2)}
+#legend .ticks{display:flex; justify-content:space-between; color:var(--ink3);
+               font-size:11px; margin-top:3px}
+.catkey{display:flex; align-items:center; gap:6px; margin:3px 0; color:var(--ink2)}
+.catkey i{width:11px; height:11px; border-radius:3px; display:inline-block; flex:none}
+#count{color:var(--ink2)}
+#count b{color:var(--ink); font-weight:600}
+.note{color:var(--ink3); font-size:11.5px; margin-top:6px}
+.swatch{display:inline-block; width:9px; height:9px; border-radius:50%;
+        background:#ff7f50; box-shadow:0 0 0 1.4px #fff,0 0 0 2.2px #e3e5e8;
+        margin-right:5px}
+.btnrow{display:flex; gap:6px; margin-top:8px}
+.btnrow button{
+  flex:1; border:1px solid var(--line2); background:var(--panel); border-radius:6px;
+  padding:5px 8px; cursor:pointer; color:var(--ink2);
+}
+.btnrow button:hover{border-color:var(--accent); color:var(--accent)}
+#selcard{margin-top:10px; border-top:1px solid var(--line); padding-top:10px; display:none}
+#selcard .gid{font-weight:600; font-size:14px}
+#selcard a{display:inline-block; margin-top:6px}
+#selcard table{border-collapse:collapse; font-size:11.5px; margin-top:5px; width:100%}
+#selcard td{padding:1px 0}
+#selcard td:first-child{color:var(--ink3)}
+#selcard td:last-child{text-align:right}
+.vh{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div id="shell">
+  <header>
+    <h1>JADES SED manifold</h1>
+    <span class="sub">scaling relations as rotating projections of the fitted parameter space</span>
+    <span class="spacer"></span>
+    <div id="runtabs" role="group" aria-label="Model run"></div>
+  </header>
+
+  <div id="main">
+    <!-- left ------------------------------------------------------- -->
+    <aside>
+      <h2>Views</h2>
+      <div id="presets"></div>
+
+      <h2>Rotate</h2>
+      <div class="field">
+        <label for="spin">Automatic tour</label>
+        <div class="row">
+          <button id="spin" class="preset" aria-pressed="false" style="margin:0">
+            <b>Play</b><span>drift through random projections</span>
+          </button>
+        </div>
+      </div>
+      <p class="note">Drag a labelled spoke in the plot to rotate that axis into
+      or out of the view. Drag the background to pan, scroll to zoom.</p>
+
+      <h2>Filter</h2>
+      <div class="field">
+        <label>Redshift</label>
+        <div class="row">
+          <input id="zmin" type="number" step="0.1" placeholder="min" aria-label="minimum redshift">
+          <input id="zmax" type="number" step="0.1" placeholder="max" aria-label="maximum redshift">
+        </div>
+      </div>
+      <div class="field">
+        <label>Spectroscopic redshift quality</label>
+        <div class="checks" id="flags"></div>
+      </div>
+      <div class="field">
+        <label for="chi2max">Maximum &chi;&sup2;<sub>&nu;</sub></label>
+        <input id="chi2max" type="number" step="1" placeholder="no limit">
+      </div>
+      <div class="field">
+        <div class="checks">
+          <label><input type="checkbox" id="goldonly"> Gold sample only</label>
+        </div>
+      </div>
+      <div class="btnrow">
+        <button id="reset">Reset filters</button>
+      </div>
+    </aside>
+
+    <!-- stage ------------------------------------------------------ -->
+    <div id="stage">
+      <canvas id="plot"></canvas>
+      <div id="axisreadout" aria-live="off"></div>
+      <div id="hint">drag a spoke to rotate &middot; click a galaxy for its values</div>
+      <div id="tip" role="tooltip"></div>
+      <div id="busy"><div>Loading catalogue&hellip;</div><div class="bar"><i></i></div></div>
+    </div>
+
+    <!-- right ------------------------------------------------------ -->
+    <aside class="right">
+      <h2>Colour</h2>
+      <div class="field">
+        <select id="colourby" aria-label="Colour galaxies by"></select>
+      </div>
+      <div id="legend"></div>
+
+      <h2>Showing</h2>
+      <div id="count"></div>
+
+      <div id="selcard">
+        <div class="gid" id="selid"></div>
+        <table id="seltab"></table>
+        <a id="sellink" href="#">Open this galaxy&rsquo;s BPASS fit page &rarr;</a>
+      <p class="note">That page shows the earlier BPASS 2.2 fit of the same
+      object, not the MIST/MILES fit plotted here.</p>
+      </div>
+
+      <h2>Relations</h2>
+      <div id="relchecks" class="checks col"></div>
+      <div id="overlaynote" class="note"></div>
+
+      <h2>Share</h2>
+      <div class="btnrow"><button id="copylink">Copy link to this view</button></div>
+      <p class="note">The address bar always describes the current view, so a
+      bookmark or a pasted link restores it exactly.</p>
+
+      <h2>These fits</h2>
+      <p class="note" id="provenance"></p>
+
+      <h2>Accessibility</h2>
+      <p class="note">Every galaxy here is also a row in the
+      <a href="index.html">catalogue table</a>, which is keyboard-navigable and
+      screen-reader friendly. Colour is never the only channel: the legend is
+      always shown and the hover card gives values.</p>
+    </aside>
+  </div>
+</div>
+<p class="vh" id="live" aria-live="polite"></p>
+
+<script type="module">
+/* ==================================================================
+   JADES SED manifold
+   ------------------------------------------------------------------
+   A 2-D linear projection of the fitted parameter space, rotatable in
+   the manner of a manual grand tour (Cook & Buja 1997).  ~5000 galaxies
+   per run, so everything is plain canvas 2-D; there is no case here for
+   the WebGL accumulation pipeline a 10^5-10^6 point cloud needs.
+   ================================================================== */
+
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+/* ---- colour ------------------------------------------------------
+   House palette from the paper-figures skill, so the site and the paper
+   figures read as one system.  Sequential quantities use GRAD (soft blue
+   -> pink -> coral -> red -> dark red): lightness is flat over the first
+   fifth then falls, so the highest values are darkest, nothing vanishes
+   on white and it still orders correctly in greyscale.  Categorical
+   slots follow the five-accent order.  Banned: viridis, green, yellow,
+   purple, rainbow.                                                     */
+const RAMP = ["#a3acd8","#c7a8cd","#eba4c3","#f8979b","#fd8769",
+              "#f7674c","#e83843","#d11339","#a60f2d","#7a0b21"];
+const BLUE="#6170b9", CORAL="#ff7f50", CRIM="#dc143c", PINK="#f4a3c0",
+      DKRED="#7a0b21", INK="#222222", GREY="#9098a1", GREY_LT="#d9dce0";
+const CAT   = [BLUE, CORAL, CRIM, PINK];      // z-flag A / B / C / none
+const NBINS = RAMP.length;
+/** n ordered colours sampled from GRAD, for a discrete series of a
+    continuous variable (the skill's `sweep`). */
+function sweep(n,lo=0.15,hi=1){
+  return Array.from({length:n},(_,i)=>
+    rampCss(lo+(hi-lo)*(n===1?0.5:i/(n-1))));
+}
+
+function hex2rgb(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+const RAMP_RGB = RAMP.map(hex2rgb);
+function rampCss(t){                       // t in [0,1] -> css colour
+  const x = clamp(t,0,1)*(NBINS-1), i = Math.min(NBINS-2, Math.floor(x)), f = x-i;
+  const a = RAMP_RGB[i], b = RAMP_RGB[i+1];
+  return `rgb(${Math.round(a[0]+f*(b[0]-a[0]))},${Math.round(a[1]+f*(b[1]-a[1]))},${Math.round(a[2]+f*(b[2]-a[2]))})`;
+}
+
+/* ---- linear algebra in u-space ----------------------------------- */
+function dot(a,b,n){let s=0; for(let i=0;i<n;i++) s+=a[i]*b[i]; return s;}
+function norm(a,n){return Math.sqrt(dot(a,a,n));}
+function scaleInto(out,a,k,n){for(let i=0;i<n;i++) out[i]=a[i]*k;}
+function axpy(out,a,k,n){for(let i=0;i<n;i++) out[i]+=a[i]*k;}
+
+/** Gram-Schmidt the pair (p,q) back to orthonormal. */
+function orthonormalise(p,q,D){
+  let np = norm(p,D) || 1; scaleInto(p,p,1/np,D);
+  const d = dot(q,p,D);  axpy(q,p,-d,D);
+  let nq = norm(q,D) || 1; scaleInto(q,q,1/nq,D);
+}
+
+/** Slerp two unit vectors. */
+function slerp(out,a,b,t,D){
+  let c = clamp(dot(a,b,D),-1,1);
+  if (c < 0){ // take the short way round
+    const bb = new Float64Array(D); for(let i=0;i<D;i++) bb[i]=-b[i];
+    return slerp(out,a,bb,t,D);
+  }
+  const w = Math.acos(c);
+  if (w < 1e-6){ for(let i=0;i<D;i++) out[i]=a[i]+t*(b[i]-a[i]); return; }
+  const s = Math.sin(w), s1 = Math.sin((1-t)*w)/s, s2 = Math.sin(t*w)/s;
+  for(let i=0;i<D;i++) out[i]=s1*a[i]+s2*b[i];
+}
+
+/* ==================================================================
+   State
+   ================================================================== */
+const S = {
+  manifest:null, run:null, D:0, N:0,
+  dimKeys:[], dimMeta:[], colMeta:{}, U:null,     // U[k] = Float32Array(N), standardised
+  raw:{}, meta:null,
+  p:null, q:null,                                  // frame, Float64Array(D)
+  target:null, tween:0, tweenFrom:null,            // preset transition
+  colour:"zred", preset:null, spin:false,
+  rel:new Set(),
+  cam:{x:0,y:0,k:1},
+  filt:{zmin:null,zmax:null,flags:new Set([0,1,2,3]),chi2:null,gold:false},
+  vis:null, order:null, sel:null, hover:null,
+  px:null, py:null,                                // screen coords cache
+  overlays:{mzr:null},
+};
+
+/* ==================================================================
+   Loading
+   ================================================================== */
+async function loadManifest(){
+  S.manifest = await (await fetch("data/manifold/manifest.json")).json();
+  try{ S.overlays.mzr = await (await fetch("data/overlays/mzr.json")).json(); }
+  catch(e){ S.overlays.mzr = null; }
+}
+
+async function loadRun(run){
+  const rc = S.manifest.runs.find(r=>r.name===run) || S.manifest.runs[0];
+  S.run = rc.name;
+  const meta = await (await fetch(`data/manifold/${S.run}.meta.json`)).json();
+  const buf  = await (await fetch(`data/manifold/${S.run}.f32`)).arrayBuffer();
+  const N = meta.n, all = new Float32Array(buf);
+  const keys = rc.dims.concat(rc.extra);
+  S.meta = meta; S.N = N;
+  S.dimKeys = rc.dims.slice();
+  S.dimMeta = rc.dims.map(k=>S.manifest.dims.find(d=>d.key===k));
+  S.D = S.dimKeys.length;
+  S.colMeta = {}; S.raw = {}; S.U = {};
+  keys.forEach((k,i)=>{
+    const col = all.subarray(i*N,(i+1)*N);
+    const m = S.manifest.dims.find(d=>d.key===k) || S.manifest.extra.find(d=>d.key===k);
+    S.colMeta[k]=m; S.raw[k]=col;
+    const u = new Float32Array(N);
+    for(let j=0;j<N;j++){
+      const v = col[j];
+      u[j] = Number.isFinite(v) ? (v-m.center)/m.scale : 0;   // absent -> centre
+    }
+    S.U[k]=u;
+  });
+  S.vis = new Uint8Array(N); S.px = new Float32Array(N); S.py = new Float32Array(N);
+  S.order = new Int32Array(N); for(let i=0;i<N;i++) S.order[i]=i;
+  S.sel = null;
+}
+
+/* ==================================================================
+   Frames and presets
+   ================================================================== */
+function unitFrame(kx,ky){
+  const p=new Float64Array(S.D), q=new Float64Array(S.D);
+  const ix=S.dimKeys.indexOf(kx), iy=S.dimKeys.indexOf(ky);
+  if(ix>=0) p[ix]=1; if(iy>=0) q[iy]=1;
+  orthonormalise(p,q,S.D); return {p,q};
+}
+/** Frame from weighted combinations, e.g. sSFR = sfr10 - logmass. */
+function comboFrame(cx,cy){
+  const p=new Float64Array(S.D), q=new Float64Array(S.D);
+  for(const [k,w] of cx){ const i=S.dimKeys.indexOf(k); if(i>=0) p[i]+=w; }
+  for(const [k,w] of cy){ const i=S.dimKeys.indexOf(k); if(i>=0) q[i]+=w; }
+  orthonormalise(p,q,S.D); return {p,q};
+}
+
+const PRESETS = [
+  {id:"sfms",  name:"Star-forming main sequence", sub:"log M\u2605 \u2013 log SFR\u2081\u2080",
+   frame:()=>unitFrame("logmass","logsfr10")},
+  {id:"sfms100", name:"Main sequence, 100 Myr", sub:"log M\u2605 \u2013 log SFR\u2081\u2080\u2080",
+   frame:()=>unitFrame("logmass","logsfr100")},
+  {id:"mzr",   name:"Mass\u2013metallicity", sub:"log M\u2605 \u2013 log Z_gas",
+   frame:()=>unitFrame("logmass","gas_logz")},
+  {id:"burst", name:"Burstiness", sub:"log M\u2605 \u2013 b = log SFR\u2081\u2080/SFR\u2081\u2080\u2080",
+   frame:()=>unitFrame("logmass","burst")},
+  {id:"uvslope", name:"UV slope", sub:"M_UV \u2013 \u03b2_UV",
+   frame:()=>unitFrame("MUV","beta_uv")},
+  {id:"uv",    name:"UV output", sub:"log M\u2605 \u2013 M_UV",
+   frame:()=>unitFrame("logmass","MUV")},
+  {id:"massz", name:"Mass build-up", sub:"redshift \u2013 log M\u2605",
+   frame:()=>unitFrame("zred","logmass")},
+  {id:"ion",   name:"Ionisation", sub:"log Z_gas \u2013 log U",
+   frame:()=>unitFrame("gas_logz","gas_logu")},
+  {id:"ssfr",  name:"Specific SFR", sub:"log M\u2605 \u2013 log sSFR\u2081\u2080",
+   frame:()=>unitFrame("logmass","logssfr10")},
+  {id:"dust",  name:"Dust and the UV slope", sub:"\u03b2_UV \u2013 \u03c4_diffuse",
+   frame:()=>unitFrame("beta_uv","tau_dust")},
+];
+
+/* ==================================================================
+   Published relations
+   ------------------------------------------------------------------
+   Each entry names the plane it lives in and is drawn ONLY when the
+   projection is (near) that plane, fading out as you rotate away: a
+   relation drawn in a projection it does not belong to would be a lie.
+   Coefficients are transcribed from the papers, not recalled; the cite
+   link goes to the source.  No IMF conversion is applied anywhere --
+   each relation is drawn as published.
+   ================================================================== */
+const COSMO={H0:67.4, Om:0.315};
+/** Age of the Universe in Gyr, flat LCDM, matter + Lambda only. */
+function ageGyr(z){
+  const OL=1-COSMO.Om;
+  return (2/(3*Math.sqrt(OL)))*Math.asinh(Math.sqrt(OL/COSMO.Om)*Math.pow(1+z,-1.5))
+         *(977.79222/COSMO.H0);
+}
+const OH_SUN = 8.69;                 // 12+log(O/H) at solar, for Z_gas/Zsun
+const Z_CURVES = [3,5,7,9];          // the sample spans 3 <= z <= 9
+
+const RELATIONS = [
+  {
+    id:"speagle14", x:"logmass", y:"logsfr10", on:true, dash:false,
+    name:"Speagle et al. (2014)", sub:"main sequence, z \u2248 0\u20136",
+    href:"https://ui.adsabs.harvard.edu/abs/2014ApJS..214...15S/abstract",
+    note:"log SFR = (0.84 \u2212 0.026 t) log M\u2605 \u2212 (6.51 \u2212 0.11 t), t = age of the Universe in Gyr.",
+    curves(){ return Z_CURVES.map(z=>{ const t=ageGyr(z);
+      return {z, f:lm=>(0.84-0.026*t)*lm-(6.51-0.11*t), lo:7.0, hi:11.0}; }); }
+  },
+  {
+    id:"simmonds25", x:"logmass", y:"logsfr10", on:true, dash:true,
+    name:"Simmonds et al. (2025)", sub:"main sequence, 9 \u2264 log M\u2605 \u2264 10.3",
+    href:"https://ui.adsabs.harvard.edu/abs/2025MNRAS.544.4551S/abstract",
+    note:"sSFR = s_b (M/10\u00b9\u2070)^\u03b2 (1+z)^\u03bc with s_b = 0.05, \u03b2 = 0.02, \u03bc = 2.30; fitted over 3 \u2264 z \u2264 9.",
+    curves(){ return Z_CURVES.map(z=>({z,
+      f:lm=>Math.log10(0.05)+(1+0.02)*(lm-10)+1+2.30*Math.log10(1+z),
+      lo:9.0, hi:10.3, ext:[7.0,11.0]})); }
+  },
+  {
+    id:"curti20", x:"logmass", y:"gas_logz", on:true, dash:false,
+    name:"Curti et al. (2020)", sub:"mass\u2013metallicity, SDSS z \u2248 0",
+    href:"https://ui.adsabs.harvard.edu/abs/2020MNRAS.491..944C/abstract",
+    note:"12+log(O/H) = Z\u2080 \u2212 (\u03b3/\u03b2) log[1 + (M/M\u2080)^\u2212\u03b2], Z\u2080 = 8.793, log M\u2080 = 10.02, \u03b3 = 0.28, \u03b2 = 1.2, T_e scale. Converted with 12+log(O/H)\u2609 = 8.69.",
+    curves(){ const Z0=8.793,lM0=10.02,g=0.28,be=1.2;
+      return [{z:0, f:lm=>Z0-(g/be)*Math.log10(1+Math.pow(10,-be*(lm-lM0)))-OH_SUN,
+               lo:7.0, hi:11.0}]; }
+  },
+  {
+    id:"yuki", x:"logmass", y:"gas_logz", on:true, points:true,
+    name:"Direct-method metallicities", sub:"Yuki's MZR release",
+    href:"", note:"Individual T_e abundances, converted with 12+log(O/H)\u2609 = 8.69.",
+  },
+];
+
+function setPreset(id,animate=true){
+  const P = PRESETS.find(p=>p.id===id); if(!P) return;
+  const f = P.frame();
+  S.preset = id;
+  if(animate && S.p){ S.tweenFrom={p:S.p.slice(),q:S.q.slice()}; S.target=f; S.tween=0; }
+  else { S.p=f.p; S.q=f.q; S.target=null; }
+  S.cam={x:0,y:0,k:1};
+  paintPresets(); pushURL();
+}
+
+/* ==================================================================
+   Manual tour: drag dimension d's spoke to (a,b)
+   ------------------------------------------------------------------
+   Write e_d = r m + s n, with m the in-plane unit vector along the
+   spoke, n the unit vector completing it out of the frame plane and
+   r = |(p_d,q_d)|.  Rotating the pair (m,n) by delta changes the
+   spoke length to cos(alpha - delta); choosing delta = alpha - acos(r')
+   lands it exactly on the requested length.  The in-plane direction is
+   set first by a plain 2-D rotation of the frame, which is exact.
+   ================================================================== */
+function manualRotate(d,a,b){
+  const D=S.D, p=S.p, q=S.q;
+  let r2=a*a+b*b; let rp=Math.sqrt(r2);
+  if(rp>0.999){ rp=0.999; a*=0.999/Math.sqrt(r2); b*=0.999/Math.sqrt(r2); }
+  const th = Math.atan2(b,a);
+  // 1. in-plane rotation so the spoke points at theta
+  const th0 = Math.atan2(q[d],p[d]);
+  const dth = th-th0, c=Math.cos(dth), s=Math.sin(dth);
+  for(let i=0;i<D;i++){
+    const pi=p[i], qi=q[i];
+    p[i]=c*pi - s*qi;  q[i]=s*pi + c*qi;
+  }
+  // 2. out-of-plane rotation to set the spoke length
+  const m=new Float64Array(D), cc=new Float64Array(D), n=new Float64Array(D);
+  const ct=Math.cos(th), st=Math.sin(th);
+  for(let i=0;i<D;i++){ m[i]=ct*p[i]+st*q[i]; cc[i]=-st*p[i]+ct*q[i]; }
+  let r = clamp(dot(m,(()=>{const e=new Float64Array(D);e[d]=1;return e;})(),D),-1,1);
+  r = clamp(m[d],-1,1);
+  const sperp = Math.sqrt(Math.max(0,1-r*r));
+  if(sperp<1e-7) return;                   // spoke already fills the plane
+  for(let i=0;i<D;i++) n[i] = ((i===d?1:0) - r*m[i]) / sperp;
+  const alpha = Math.acos(clamp(r,-1,1));
+  const delta = alpha - Math.acos(clamp(rp,-1,1));
+  const cd=Math.cos(delta), sd=Math.sin(delta);
+  for(let i=0;i<D;i++) m[i]=cd*m[i]+sd*n[i];
+  for(let i=0;i<D;i++){ p[i]=ct*m[i]-st*cc[i]; q[i]=st*m[i]+ct*cc[i]; }
+  orthonormalise(p,q,D);
+  S.preset=null; S.target=null; paintPresets();
+}
+
+/* ==================================================================
+   Projection & filtering
+   ================================================================== */
+function applyFilter(){
+  const f=S.filt, N=S.N, m=S.meta;
+  const z=S.raw.zred, c2=S.raw.chi2_nu;   // chi2 stored as log10
+  let n=0;
+  for(let i=0;i<N;i++){
+    let ok=1;
+    if(f.zmin!=null && !(z[i]>=f.zmin)) ok=0;
+    if(ok && f.zmax!=null && !(z[i]<=f.zmax)) ok=0;
+    if(ok && !f.flags.has(m.flag[i])) ok=0;
+    if(ok && f.chi2!=null && c2 && !(Math.pow(10,c2[i])<=f.chi2)) ok=0;
+    if(ok && f.gold && !(m.gold&&m.gold[i])) ok=0;
+    S.vis[i]=ok; n+=ok;
+  }
+  $("#count").innerHTML = `<b>${n.toLocaleString()}</b> of ${N.toLocaleString()} galaxies`;
+  return n;
+}
+
+function project(){
+  const D=S.D,N=S.N,p=S.p,q=S.q,U=S.U,keys=S.dimKeys;
+  const px=S.px, py=S.py;
+  px.fill(0); py.fill(0);
+  for(let d=0; d<D; d++){
+    const pw=p[d], qw=q[d];
+    if(Math.abs(pw)<1e-9 && Math.abs(qw)<1e-9) continue;
+    const u=U[keys[d]];
+    for(let i=0;i<N;i++){ const v=u[i]; px[i]+=pw*v; py[i]+=qw*v; }
+  }
+}
+
+/* ==================================================================
+   Rendering
+   ================================================================== */
+const cv=$("#plot"), ctx=cv.getContext("2d",{alpha:false});
+let W=0,H=0,DPR=1, scale=1, cx0=0, cy0=0;
+
+function resize(){
+  const r=cv.parentElement.getBoundingClientRect();
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=Math.max(320,r.width|0); H=Math.max(260,r.height|0);
+  cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+"px"; cv.style.height=H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  draw();
+}
+
+/* The colour domain is the 2-98 percentile span, not the full range: a
+   handful of prior-railed objects (z -> 17.7, chi2_nu -> 800) would
+   otherwise push every real galaxy into the first step of the ramp.
+   Values outside the span clamp to the end steps, and the legend says so. */
+function colourValue(i){
+  const k=S.colour, m=S.colMeta[k];
+  if(k==="__flag") return null;
+  const v=S.raw[k]?.[i];
+  if(!Number.isFinite(v)) return null;
+  const lo=m.clo ?? m.lo, hi=m.chi ?? m.hi;
+  return clamp((v-lo)/((hi-lo)||1),0,1);
+}
+
+function draw(){
+  if(!S.p) return;
+  ctx.fillStyle=getComputedStyle(document.body).getPropertyValue("--surface").trim()||"#fff";
+  ctx.fillRect(0,0,W,H);
+
+  // world -> screen
+  const pad=44;
+  let lo=Infinity,hi=-Infinity,lo2=Infinity,hi2=-Infinity;
+  for(let i=0;i<S.N;i++){ if(!S.vis[i])continue;
+    const x=S.px[i],y=S.py[i];
+    if(x<lo)lo=x; if(x>hi)hi=x; if(y<lo2)lo2=y; if(y>hi2)hi2=y; }
+  if(!isFinite(lo)){ lo=-1;hi=1;lo2=-1;hi2=1; }
+  const sx=(W-2*pad)/((hi-lo)||1), sy=(H-2*pad)/((hi2-lo2)||1);
+  scale=Math.min(sx,sy)*S.cam.k;
+  cx0=W/2 - ((lo+hi)/2)*scale + S.cam.x;
+  cy0=H/2 + ((lo2+hi2)/2)*scale + S.cam.y;
+  const SX=v=>cx0+v*scale, SY=v=>cy0-v*scale;
+
+  drawGrid(SX,SY,lo,hi,lo2,hi2);
+  drawOverlay(SX,SY);
+
+  // points, bucketed by colour so fillStyle changes at most NBINS times
+  const isFlag = S.colour==="__flag";
+  const buckets = isFlag ? [[],[],[],[]] : Array.from({length:NBINS},()=>[]);
+  for(let i=0;i<S.N;i++){
+    if(!S.vis[i]) continue;
+    let b;
+    if(isFlag) b=S.meta.flag[i];
+    else { const t=colourValue(i); if(t==null){ b=-1; } else b=Math.min(NBINS-1,Math.floor(t*NBINS)); }
+    if(b<0){ buckets[0].push(i); continue; }
+    buckets[b].push(i);
+  }
+  const r = S.N>3000?2.0:2.6;
+  ctx.globalAlpha=.85;
+  buckets.forEach((arr,b)=>{
+    if(!arr.length) return;
+    ctx.fillStyle = isFlag?CAT[b]:RAMP[b];
+    ctx.beginPath();
+    for(const i of arr){
+      const x=SX(S.px[i]), y=SY(S.py[i]);
+      if(x<-8||x>W+8||y<-8||y>H+8) continue;
+      ctx.moveTo(x+r,y); ctx.arc(x,y,r,0,6.2832);
+    }
+    ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // selected & hovered galaxy get a ring, so identity is not colour-only
+  for(const [idx,col,rad] of [[S.sel,"#222222",5.5],[S.hover,"#ff7f50",5]]){
+    if(idx==null||!S.vis[idx]) continue;
+    const x=SX(S.px[idx]), y=SY(S.py[idx]);
+    ctx.beginPath(); ctx.arc(x,y,rad,0,6.2832);
+    ctx.strokeStyle="#fff"; ctx.lineWidth=3.2; ctx.stroke();
+    ctx.strokeStyle=col;   ctx.lineWidth=1.6; ctx.stroke();
+  }
+  drawSpokes();
+  updateReadout();
+}
+
+/** If a screen axis is (almost) a single parameter, return it so the grid
+    can be labelled in physical units.  A mixed axis has no physical scale,
+    which is exactly what the readout in the corner is for. */
+function pureAxis(v){
+  let bi=-1,bw=0,tot=0;
+  for(let d=0;d<S.D;d++){ const a=Math.abs(v[d]); tot+=a*a; if(a>bw){bw=a;bi=d;} }
+  return (bw*bw>0.985*tot && bw>0.985) ? {d:bi,sign:Math.sign(v[bi])} : null;
+}
+function niceTicks(lo,hi,want=6){
+  const span=hi-lo; if(!(span>0)) return [];
+  const raw=span/want, mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const step=[1,2,2.5,5,10].map(m=>m*mag).find(st=>span/st<=want*1.4)||10*mag;
+  const out=[]; for(let t=Math.ceil(lo/step)*step; t<=hi+1e-9; t+=step) out.push(+t.toFixed(10));
+  return out;
+}
+function drawGrid(SX,SY,lo,hi,lo2,hi2){
+  const ax=pureAxis(S.p), ay=pureAxis(S.q);
+  ctx.save();
+  ctx.font="11px ui-sans-serif,system-ui";
+  ctx.strokeStyle="#eef0f2"; ctx.lineWidth=1;
+
+  const marks=(axis,ulo,uhi)=>{
+    if(!axis) return null;
+    const m=S.dimMeta[axis.d];
+    const phys=u=>m.center + axis.sign*u*m.scale;
+    const p0=phys(ulo), p1=phys(uhi);
+    return niceTicks(Math.min(p0,p1),Math.max(p0,p1))
+      .map(t=>({u:axis.sign*(t-m.center)/m.scale, t, label:m.label}));
+  };
+  const tx=marks(ax,lo,hi), ty=marks(ay,lo2,hi2);
+
+  ctx.beginPath();
+  if(tx) tx.forEach(k=>{const x=SX(k.u); ctx.moveTo(x,0); ctx.lineTo(x,H);});
+  else for(let g=Math.ceil(lo);g<=hi;g++){const x=SX(g); ctx.moveTo(x,0); ctx.lineTo(x,H);}
+  if(ty) ty.forEach(k=>{const y=SY(k.u); ctx.moveTo(0,y); ctx.lineTo(W,y);});
+  else for(let g=Math.ceil(lo2);g<=hi2;g++){const y=SY(g); ctx.moveTo(0,y); ctx.lineTo(W,y);}
+  ctx.stroke();
+
+  ctx.fillStyle="#9098a1"; ctx.textBaseline="alphabetic";
+  if(tx){ ctx.textAlign="center";
+    tx.forEach(k=>{const x=SX(k.u); if(x>26&&x<W-26) ctx.fillText(String(k.t),x,H-8);});
+    ctx.fillStyle="#575d63"; ctx.font="12px ui-sans-serif,system-ui";
+    ctx.fillText(tx[0].label, W/2, H-24);
+  }
+  if(ty){ ctx.fillStyle="#9098a1"; ctx.font="11px ui-sans-serif,system-ui";
+    ctx.textAlign="left";
+    ty.forEach(k=>{const y=SY(k.u); if(y>18&&y<H-18) ctx.fillText(String(k.t),6,y-3);});
+    ctx.save(); ctx.translate(15,H/2); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle="#575d63"; ctx.font="12px ui-sans-serif,system-ui";
+    ctx.textAlign="center"; ctx.fillText(ty[0].label,0,0); ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* A relation is only meaningful when the projection IS the plane it lives
+   in, so it fades out as you rotate away. */
+function planeWeight(kx,ky){
+  const f=unitFrame(kx,ky);
+  if(norm(f.p,S.D)<0.5||norm(f.q,S.D)<0.5) return 0;
+  const a=Math.abs(dot(f.p,S.p,S.D)), b=Math.abs(dot(f.q,S.q,S.D));
+  return clamp((a*b-0.97)/0.03,0,1);
+}
+
+function drawOverlay(SX,SY){
+  const shown=[]; const labelled=new Set(); const lboxes=[];
+  const freeSpot=(x,y,w)=>{
+    const box={x,y:y-9,w,h:12};
+    if(lboxes.some(b=>!(box.x>b.x+b.w||box.x+box.w<b.x||
+                        box.y>b.y+b.h||box.y+box.h<b.y))) return false;
+    lboxes.push(box); return true;
+  };
+  for(const R of RELATIONS){
+    if(!S.rel.has(R.id)) continue;
+    const w=planeWeight(R.x,R.y); if(w<=0) continue;
+    // Two families in one plane must differ by STYLE, not colour alone, and
+    // only the first labels its redshifts or the labels collide.
+    const plane=R.x+"|"+R.y;
+    const doLabels=!labelled.has(plane); labelled.add(plane);
+    const mx=S.colMeta[R.x], my=S.colMeta[R.y];
+    if(!mx||!my) continue;
+    const ux=v=>SX((v-mx.center)/mx.scale), uy=v=>SY((v-my.center)/my.scale);
+    ctx.save(); ctx.globalAlpha=w;
+
+    if(R.points){
+      const o=S.overlays.mzr; if(!o){ ctx.restore(); continue; }
+      ctx.fillStyle=CRIM; ctx.strokeStyle="#fff"; ctx.lineWidth=1.4;
+      for(let i=0;i<o.logm.length;i++){
+        ctx.beginPath(); ctx.arc(ux(o.logm[i]),uy(o.oh[i]-OH_SUN),3.2,0,6.2832);
+        ctx.stroke(); ctx.fill();
+      }
+      shown.push({R,swatch:`background:${CRIM};border-radius:50%`});
+    } else {
+      const cs=R.curves(), cols=cs.length>1?sweep(cs.length):[R.id==="curti20"?INK:BLUE];
+      cs.forEach((c,k)=>{
+        const col=cols[k];
+        const seg=(lo,hi,dash)=>{
+          ctx.setLineDash(dash?[3,3]:(R.dash?[6,3]:[]));
+          // white casing first, so the curve stays legible over the points
+          for(const pass of [{c:"#fff",w:3.6},{c:col,w:1.6}]){
+            ctx.strokeStyle=pass.c; ctx.lineWidth=pass.w; ctx.beginPath();
+            for(let lm=lo,first=true; lm<=hi+1e-9; lm+=0.05,first=false){
+              const X=ux(lm), Y=uy(c.f(lm));
+              first?ctx.moveTo(X,Y):ctx.lineTo(X,Y);
+            }
+            ctx.stroke();
+          }
+          ctx.setLineDash([]);
+        };
+        if(c.ext){ seg(c.ext[0],c.lo,true); seg(c.hi,c.ext[1],true); }
+        seg(c.lo,c.hi,false);
+        if(cs.length>1 && doLabels){
+          ctx.font="10.5px ui-sans-serif,system-ui"; ctx.textAlign="left";
+          const txt="z="+c.z, X=ux(c.hi)+5, Y=uy(c.f(c.hi))+3;
+          if(freeSpot(X,Y,ctx.measureText(txt).width)){
+            ctx.lineWidth=3; ctx.strokeStyle="#fff"; ctx.strokeText(txt,X,Y);
+            ctx.fillStyle=col; ctx.fillText(txt,X,Y);
+          }
+        }
+      });
+      const key=cs.length>1?RAMP[5]:(R.id==="curti20"?INK:BLUE);
+      shown.push({R, swatch: R.dash
+        ? `background:repeating-linear-gradient(90deg,${key} 0 4px,transparent 4px 7px);height:3px;margin-top:8px`
+        : `background:${key};height:3px;margin-top:8px`});
+    }
+    ctx.restore();
+  }
+  paintRelationNote(shown);
+}
+
+function paintRelationNote(shown){
+  const el=$("#overlaynote");
+  if(!shown.length){
+    el.innerHTML="Relations appear when you look at the plane they live in \u2014 "
+      +"try the main-sequence or mass\u2013metallicity views.";
+    return;
+  }
+  el.innerHTML=shown.map(({R,swatch})=>
+    `<div class="relnote"><i style="${swatch}"></i><span>`
+    +(R.href?`<a href="${R.href}" target="_blank" rel="noopener">${R.name}</a>`:R.name)
+    +` \u2014 ${R.dash?"Dashed. ":""}${R.note}</span></div>`).join("");
+}
+
+/* Dimension spokes: the image of each unit axis, draggable. */
+let spokeGeom=[];
+function drawSpokes(){
+  const R=Math.min(W,H)*0.15, ox=W-R-58, oy=H-R-40;
+  spokeGeom=[]; const placed=[];
+  ctx.save();
+  ctx.strokeStyle="#d9dce0"; ctx.fillStyle="#fbfbfa"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(ox,oy,R,0,6.2832); ctx.fill(); ctx.stroke();
+  ctx.font="10.5px ui-sans-serif,system-ui";
+  for(let d=0; d<S.D; d++){
+    const ex=S.p[d], ey=S.q[d], len=Math.hypot(ex,ey);
+    const x=ox+ex*R, y=oy-ey*R;
+    spokeGeom.push({d,x,y});
+    const strong=len>0.25;
+    ctx.strokeStyle=strong?"#6170b9":"#c3c8cd"; ctx.lineWidth=strong?1.8:1.2;
+    ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(x,y); ctx.stroke();
+    ctx.fillStyle=strong?"#6170b9":"#9098a1";
+    ctx.beginPath(); ctx.arc(x,y,3.4,0,6.2832); ctx.fill();
+    if(strong){
+      const lab=S.dimMeta[d].label, tw=ctx.measureText(lab).width;
+      const lx=x + (ex>=0? 6 : -6-tw), ly=y + (ey>=0? -6 : 12);
+      // skip a label that would sit on top of one already drawn
+      const box={x:lx,y:ly-9,w:tw,h:12};
+      const hits=placed.some(b=>!(box.x>b.x+b.w||box.x+box.w<b.x||
+                                  box.y>b.y+b.h||box.y+box.h<b.y));
+      if(!hits){ placed.push(box); ctx.fillStyle="#222222"; ctx.fillText(lab,lx,ly); }
+    }
+  }
+  ctx.restore();
+}
+
+/* The two screen axes are combinations of parameters; say which. */
+function updateReadout(){
+  const terms=(v)=>S.dimKeys.map((k,d)=>[S.dimMeta[d].label,v[d]])
+    .filter(t=>Math.abs(t[1])>0.18)
+    .sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,3)
+    .map((t,i)=>{
+      const c=t[1], a=Math.abs(c).toFixed(2);
+      return (i===0? (c<0?"−":"") : (c<0?" − ":" + ")) +
+             (Math.abs(Math.abs(c)-1)<0.02?"":a+"·") + t[0];
+    }).join("") || "—";
+  $("#axisreadout").innerHTML =
+    `horizontal &nbsp;<b>${terms(S.p)}</b><br>vertical &nbsp;&nbsp;&nbsp;<b>${terms(S.q)}</b>`;
+}
+
+/* ==================================================================
+   Interaction
+   ================================================================== */
+let drag=null;
+function localPt(ev){
+  const r=cv.getBoundingClientRect();
+  return {x:ev.clientX-r.left, y:ev.clientY-r.top};
+}
+cv.addEventListener("pointerdown",ev=>{
+  const P=localPt(ev);
+  const hit=spokeGeom.find(s=>Math.hypot(s.x-P.x,s.y-P.y)<9);
+  cv.setPointerCapture(ev.pointerId); cv.classList.add("dragging");
+  if(hit){
+    const R=Math.min(W,H)*0.15, ox=W-R-58, oy=H-R-40;
+    drag={kind:"spoke",d:hit.d,ox,oy,R};
+  } else drag={kind:"pan",x:P.x,y:P.y,cx:S.cam.x,cy:S.cam.y,moved:false};
+});
+cv.addEventListener("pointermove",ev=>{
+  const P=localPt(ev);
+  if(drag?.kind==="spoke"){
+    manualRotate(drag.d,(P.x-drag.ox)/drag.R,-(P.y-drag.oy)/drag.R);
+    project(); draw(); scheduleURL();
+  } else if(drag?.kind==="pan"){
+    if(Math.hypot(P.x-drag.x,P.y-drag.y)>3) drag.moved=true;
+    S.cam.x=drag.cx+(P.x-drag.x); S.cam.y=drag.cy+(P.y-drag.y); draw();
+  } else {
+    const i=pick(P.x,P.y);
+    if(i!==S.hover){ S.hover=i; draw(); showTip(i,P); }
+    else showTip(i,P);
+  }
+});
+addEventListener("pointerup",ev=>{
+  if(drag?.kind==="pan" && !drag.moved){
+    const P=localPt(ev), i=pick(P.x,P.y);
+    if(i!=null) selectGalaxy(i);
+  }
+  drag=null; cv.classList.remove("dragging"); pushURL();
+});
+cv.addEventListener("pointerleave",()=>{ S.hover=null; $("#tip").style.display="none"; draw(); });
+cv.addEventListener("wheel",ev=>{
+  ev.preventDefault();
+  const f=Math.exp(-ev.deltaY*0.0012);
+  S.cam.k=clamp(S.cam.k*f,0.4,25); draw(); scheduleURL();
+},{passive:false});
+
+function pick(mx,my){
+  let best=null,bd=100;
+  for(let i=0;i<S.N;i++){
+    if(!S.vis[i]) continue;
+    const x=cx0+S.px[i]*scale, y=cy0-S.py[i]*scale;
+    const d=(x-mx)*(x-mx)+(y-my)*(y-my);
+    if(d<bd){ bd=d; best=i; }
+  }
+  return best;
+}
+
+function fmt(k,i){
+  const m=S.colMeta[k]; if(!m) return "–";
+  const v=S.raw[k]?.[i];
+  if(!Number.isFinite(v)) return "–";
+  return (Math.abs(v)>=1000||Math.abs(v)<0.01) ? v.toExponential(2) : v.toFixed(2);
+}
+function showTip(i,P){
+  const t=$("#tip");
+  if(i==null){ t.style.display="none"; return; }
+  const keys=["zred","logmass","sfr10","gas_logz","gas_logu"].filter(k=>S.colMeta[k]);
+  t.innerHTML=`<div class="id mono">#${S.meta.id[i]}</div><table>`+
+    keys.map(k=>`<tr><td>${S.colMeta[k].label}</td><td class="mono">${fmt(k,i)}</td></tr>`).join("")+
+    `</table>`;
+  t.style.display="block";
+  const r=t.getBoundingClientRect();
+  t.style.left=clamp(P.x+14,4,W-r.width-4)+"px";
+  t.style.top =clamp(P.y+14,4,H-r.height-4)+"px";
+}
+
+function selectGalaxy(i){
+  S.sel=i; draw();
+  const id=S.meta.id[i];
+  $("#selcard").style.display="block";
+  $("#selid").textContent="Galaxy "+id;
+  const keys=S.dimKeys.concat(["chi2_nu","logZ_evidence","oh_te"]).filter(k=>S.colMeta[k]);
+  $("#seltab").innerHTML=keys.map(k=>
+    `<tr><td>${S.colMeta[k].label}</td><td class="mono">${fmt(k,i)}</td></tr>`).join("");
+  // The per-galaxy pages belong to the earlier BPASS 2.2 catalogue, so the
+  // link opens a DIFFERENT fit of the same object.  Label it as such rather
+  // than letting a reader assume it shows the fit plotted here.
+  $("#sellink").href=`index.html#/galaxy/extra_young_ns/${id}`;
+  $("#live").textContent=`Selected galaxy ${id}.`;
+  pushURL();
+}
+
+/* ==================================================================
+   Animation
+   ================================================================== */
+let raf=null, spinT=0, spinFrom=null, spinTo=null;
+function randomFrame(){
+  const p=new Float64Array(S.D), q=new Float64Array(S.D);
+  for(let i=0;i<S.D;i++){ p[i]=Math.random()*2-1; q[i]=Math.random()*2-1; }
+  orthonormalise(p,q,S.D); return {p,q};
+}
+function tick(){
+  raf=null; let need=false;
+  if(S.target){
+    S.tween=Math.min(1,S.tween+0.035);
+    const t=S.tween<.5?2*S.tween*S.tween:1-Math.pow(-2*S.tween+2,2)/2;   // ease
+    slerp(S.p,S.tweenFrom.p,S.target.p,t,S.D);
+    slerp(S.q,S.tweenFrom.q,S.target.q,t,S.D);
+    orthonormalise(S.p,S.q,S.D);
+    if(S.tween>=1){ S.p=S.target.p; S.q=S.target.q; S.target=null; }
+    need=true;
+  } else if(S.spin){
+    if(!spinTo){ spinFrom={p:S.p.slice(),q:S.q.slice()}; spinTo=randomFrame(); spinT=0; }
+    spinT+=0.0045;
+    slerp(S.p,spinFrom.p,spinTo.p,spinT,S.D);
+    slerp(S.q,spinFrom.q,spinTo.q,spinT,S.D);
+    orthonormalise(S.p,S.q,S.D);
+    if(spinT>=1){ spinFrom=null; spinTo=null; }
+    S.preset=null; need=true;
+  }
+  if(need){ project(); draw(); raf=requestAnimationFrame(tick); }
+}
+function kick(){ if(!raf) raf=requestAnimationFrame(tick); }
+
+/* ==================================================================
+   URL state
+   ================================================================== */
+let urlTimer=null;
+function scheduleURL(){ clearTimeout(urlTimer); urlTimer=setTimeout(pushURL,260); }
+function encFrame(){
+  const a=new Float32Array(2*S.D); a.set(S.p,0); a.set(S.q,S.D);
+  let s=""; const b=new Uint8Array(a.buffer);
+  for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function decFrame(str){
+  try{
+    const s=atob(str.replace(/-/g,"+").replace(/_/g,"/"));
+    const b=new Uint8Array(s.length); for(let i=0;i<s.length;i++) b[i]=s.charCodeAt(i);
+    const a=new Float32Array(b.buffer);
+    if(a.length!==2*S.D) return null;
+    return {p:Float64Array.from(a.subarray(0,S.D)), q:Float64Array.from(a.subarray(S.D))};
+  }catch(e){ return null; }
+}
+function pushURL(){
+  const f=S.filt, q=new URLSearchParams();
+  q.set("r",S.run); q.set("c",S.colour);
+  if(S.preset) q.set("p",S.preset); else q.set("f",encFrame());
+  if(f.zmin!=null) q.set("z0",f.zmin); if(f.zmax!=null) q.set("z1",f.zmax);
+  if(f.chi2!=null) q.set("x2",f.chi2);
+  if(f.gold) q.set("gold","1");
+  const relOff=RELATIONS.filter(R=>!S.rel.has(R.id)).map(R=>R.id);
+  if(relOff.length) q.set("rel-", relOff.join(","));
+  if(f.flags.size<4) q.set("fl",[...f.flags].join(""));
+  if(S.cam.k!==1||S.cam.x||S.cam.y) q.set("v",[S.cam.x|0,S.cam.y|0,S.cam.k.toFixed(2)].join(","));
+  if(S.sel!=null) q.set("g",S.meta.id[S.sel]);
+  history.replaceState(null,"","#"+q.toString());
+}
+function readURL(){ return new URLSearchParams(location.hash.replace(/^#/,"")); }
+
+/* ==================================================================
+   UI wiring
+   ================================================================== */
+function paintPresets(){
+  $("#presets").innerHTML=PRESETS.filter(P=>{
+    const f=P.frame(); return norm(f.p,S.D)>0.5 && norm(f.q,S.D)>0.5;
+  }).map(P=>
+    `<button class="preset" data-p="${P.id}" aria-pressed="${S.preset===P.id}">
+       <b>${P.name}</b><span>${P.sub}</span></button>`).join("");
+  $("#presets").querySelectorAll("button").forEach(b=>
+    b.onclick=()=>{ S.spin=false; paintSpin(); setPreset(b.dataset.p); kick(); });
+}
+function paintSpin(){
+  const b=$("#spin");
+  b.setAttribute("aria-pressed",S.spin?"true":"false");
+  b.querySelector("b").textContent=S.spin?"Pause":"Play";
+}
+function paintColourOptions(){
+  const opts=[["__flag","Redshift quality (categorical)"]]
+    .concat(S.dimKeys.map(k=>[k,S.colMeta[k].label]))
+    .concat(["chi2_nu","logZ_evidence","oh_te","z_spec"]
+      .filter(k=>S.colMeta[k]).map(k=>[k,S.colMeta[k].label]));
+  $("#colourby").innerHTML=opts.map(([v,l])=>
+    `<option value="${v}"${v===S.colour?" selected":""}>${l}</option>`).join("");
+}
+function paintLegend(){
+  const el=$("#legend");
+  if(S.colour==="__flag"){
+    const names=["A — secure","B","C — tentative","no spectroscopic z"];
+    el.innerHTML=names.map((n,i)=>
+      `<div class="catkey"><i style="background:${CAT[i]}"></i>${n}</div>`).join("");
+    return;
+  }
+  const m=S.colMeta[S.colour];
+  const lo=m.clo ?? m.lo, hi=m.chi ?? m.hi;
+  const stops=RAMP.map((c,i)=>`${c} ${(i/(NBINS-1)*100).toFixed(0)}%`).join(",");
+  const clipped = (m.lo<lo-1e-9)||(m.hi>hi+1e-9);
+  el.innerHTML=
+    `<div class="ramp" style="background:linear-gradient(90deg,${stops})"></div>
+     <div class="ticks mono"><span>${clipped?"\u2264":""}${lo.toFixed(2)}</span>
+     <span>${m.label}</span><span>${clipped?"\u2265":""}${hi.toFixed(2)}</span></div>`+
+    (clipped?`<p class="note">Ends clamped at the 2nd and 98th percentiles; the full range is ${m.lo.toFixed(2)} to ${m.hi.toFixed(2)}.</p>`:"")+
+    (m.n<S.N?`<p class="note">${(S.N-m.n).toLocaleString()} galaxies have no value here and are drawn in the lightest step.</p>`:"");
+}
+function paintRelChecks(){
+  $("#relchecks").innerHTML=RELATIONS.map(R=>
+    `<label><input type="checkbox" data-rel="${R.id}" ${S.rel.has(R.id)?"checked":""}>
+     ${R.name}</label>`).join("");
+  $("#relchecks").querySelectorAll("input").forEach(el=>el.onchange=()=>{
+    el.checked?S.rel.add(el.dataset.rel):S.rel.delete(el.dataset.rel);
+    draw(); pushURL();
+  });
+}
+function paintFlags(){
+  const names=["A","B","C","none"];
+  $("#flags").innerHTML=names.map((n,i)=>
+    `<label><input type="checkbox" data-fl="${i}" ${S.filt.flags.has(i)?"checked":""}> ${n}</label>`).join("");
+  $("#flags").querySelectorAll("input").forEach(el=>el.onchange=()=>{
+    const i=+el.dataset.fl; el.checked?S.filt.flags.add(i):S.filt.flags.delete(i);
+    applyFilter(); draw(); pushURL();
+  });
+}
+function paintRunTabs(){
+  $("#runtabs").innerHTML=S.manifest.runs.map(r=>
+    `<button data-run="${r.name}" aria-pressed="${r.name===S.run}">${r.label||r.name}</button>`).join("");
+  $("#runtabs").querySelectorAll("button").forEach(b=>b.onclick=async()=>{
+    const keep={preset:S.preset,colour:S.colour};
+    await loadRun(b.dataset.run);
+    paintRunTabs(); paintColourOptions();
+    if(!S.colMeta[keep.colour]) keep.colour="zred";
+    S.colour=keep.colour; $("#colourby").value=S.colour;
+    S.sel=null; $("#selcard").style.display="none";
+    setPreset(keep.preset&&PRESETS.some(p=>p.id===keep.preset)?keep.preset:"sfms",false);
+    applyFilter(); project(); paintLegend(); draw(); pushURL();
+  });
+}
+
+$("#colourby").onchange=e=>{ S.colour=e.target.value; paintLegend(); draw(); pushURL(); };
+$("#spin").onclick=()=>{ S.spin=!S.spin; spinFrom=spinTo=null; paintSpin(); kick(); pushURL(); };
+$("#zmin").onchange=e=>{ S.filt.zmin=e.target.value===""?null:+e.target.value; applyFilter(); draw(); pushURL(); };
+$("#zmax").onchange=e=>{ S.filt.zmax=e.target.value===""?null:+e.target.value; applyFilter(); draw(); pushURL(); };
+$("#chi2max").onchange=e=>{ S.filt.chi2=e.target.value===""?null:+e.target.value; applyFilter(); draw(); pushURL(); };
+$("#goldonly").onchange=e=>{ S.filt.gold=e.target.checked; applyFilter(); draw(); pushURL(); };
+$("#reset").onclick=()=>{
+  S.filt={zmin:null,zmax:null,flags:new Set([0,1,2,3]),chi2:null,gold:false};
+  $("#zmin").value=$("#zmax").value=$("#chi2max").value=""; $("#goldonly").checked=false;
+  paintFlags(); applyFilter(); draw(); pushURL();
+};
+$("#copylink").onclick=async()=>{
+  pushURL();
+  try{ await navigator.clipboard.writeText(location.href);
+       $("#copylink").textContent="Copied"; setTimeout(()=>$("#copylink").textContent="Copy link to this view",1400);
+  }catch(e){ $("#live").textContent="Copy failed; the address bar holds the link."; }
+};
+addEventListener("resize",resize);
+
+/* debug hooks (harmless; handy from the browser console) */
+Object.assign(window,{__S:S,__manualRotate:manualRotate,__project:project,__draw:draw});
+
+/* ==================================================================
+   Boot
+   ================================================================== */
+(async function(){
+  await loadManifest();
+  const q=readURL();
+  await loadRun(q.get("r")||S.manifest.runs[0].name);
+  document.title=(S.manifest.site_title||"JADES")+" — manifold";
+
+  S.colour = S.colMeta[q.get("c")]||q.get("c")==="__flag" ? q.get("c") : "zred";
+  if(q.get("z0")) S.filt.zmin=+q.get("z0");
+  if(q.get("z1")) S.filt.zmax=+q.get("z1");
+  if(q.get("x2")) S.filt.chi2=+q.get("x2");
+  if(q.get("gold")) S.filt.gold=true;
+  S.rel=new Set(RELATIONS.filter(R=>R.on).map(R=>R.id));
+  if(q.get("rel-")) q.get("rel-").split(",").forEach(id=>S.rel.delete(id));
+  if(q.get("fl")) S.filt.flags=new Set(q.get("fl").split("").map(Number));
+  if(q.get("v")){ const [x,y,k]=q.get("v").split(",").map(Number); S.cam={x,y,k:k||1}; }
+
+  const fr=q.get("f")?decFrame(q.get("f")):null;
+  if(fr){ S.p=fr.p; S.q=fr.q; orthonormalise(S.p,S.q,S.D); S.preset=null; }
+  else setPreset(q.get("p")||"sfms",false);
+
+  $("#zmin").value=S.filt.zmin??""; $("#zmax").value=S.filt.zmax??"";
+  $("#chi2max").value=S.filt.chi2??""; $("#goldonly").checked=S.filt.gold;
+  const rc=S.manifest.runs[0];
+  $("#provenance").textContent=(S.manifest.provenance||"")+
+    ` ${rc.n.toLocaleString()} galaxies, of which ${(rc.n_gold||0).toLocaleString()} are in the gold sample.`;
+
+  paintRunTabs(); paintPresets(); paintSpin(); paintColourOptions();
+  paintLegend(); paintFlags(); paintRelChecks();
+  applyFilter(); project();
+  $("#busy").remove(); resize();
+
+  const g=q.get("g");
+  if(g){ const i=S.meta.id.indexOf(+g); if(i>=0) selectGalaxy(i); }
+})();
+</script>
+</body>
+</html>
